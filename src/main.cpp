@@ -125,6 +125,134 @@ struct MenuInputContext {
   float &rightLetterSpeed;
 };
 
+static void configureMenuTexts(
+    Vector2u windowSize,
+    Text &titleText,
+    Text &menuText,
+    Text &loadingText) {
+
+  // Configure the title.
+  titleText.setString("Keyboard Hero");
+  titleText.setCharacterSize(72);
+  titleText.setStyle(Text::Bold);
+  titleText.setFillColor(Color::White);
+
+  FloatRect titleTextSize = titleText.getLocalBounds();
+  titleText.setOrigin(
+      {titleTextSize.size.x / 2.f, titleTextSize.size.y / 2.f});
+  titleText.setPosition(
+      {windowSize.x / 2.f, windowSize.y / 4.f});
+
+  // Configure the difficulty-selection menu.
+  menuText.setString("1 -> Easy\n\n2 -> Medium\n\n3 -> "
+                     "Hard\n\nQ -> Quit");
+  menuText.setCharacterSize(36);
+  menuText.setFillColor(Color::Green);
+
+  FloatRect menuTextSize = menuText.getLocalBounds();
+  menuText.setOrigin(
+      {menuTextSize.size.x / 2.f, menuTextSize.size.y / 2.f});
+  menuText.setPosition(
+      {windowSize.x / 2.f, windowSize.y / 1.5f});
+
+  // Configure the introductory loading message.
+  loadingText.setString(
+      "Loading...please do not press any keys\nKeyboardHero "
+      "may result in KeyboardFailure");
+  loadingText.setCharacterSize(36);
+  loadingText.setFillColor(Color::Yellow);
+
+  FloatRect loadingTextSize = loadingText.getLocalBounds();
+  loadingText.setOrigin(
+      {loadingTextSize.size.x / 2.f, loadingTextSize.size.y / 2.f});
+  loadingText.setPosition(
+      {windowSize.x / 2.f, windowSize.y - 76.f});
+}
+
+static void configureFeedbackText(
+    Text &text,
+    const char *message,
+    const Color &color,
+    Vector2f position) {
+
+  text.setString(message);
+  text.setCharacterSize(24);
+  text.setFillColor(color);
+
+  FloatRect textSize = text.getLocalBounds();
+  text.setOrigin(
+      {textSize.size.x / 2.f, textSize.size.y / 2.f});
+
+  text.setPosition(position);
+}
+
+static void configureGameplayHudTexts(
+    Vector2u windowSize,
+    Text &instructionsText,
+    Text &leftStreakText,
+    Text &rightStreakText,
+    int leftStreak,
+    int rightStreak) {
+
+  // Configure gameplay instructions.
+  instructionsText.setString(
+      "TAB -> Pause\n\nESC -> Quit\n\nCTL -> Mute Song");
+  instructionsText.setCharacterSize(36);
+  instructionsText.setFillColor(Color::White);
+
+  FloatRect instructionsSize = instructionsText.getLocalBounds();
+  instructionsText.setOrigin(
+      {instructionsSize.size.x / 2.f,
+       instructionsSize.size.y / 2.f});
+  instructionsText.setPosition(
+      {windowSize.x / 2.f, windowSize.y / 2.f});
+
+  // Configure left-hand streak counter.
+  leftStreakText.setString("Streak: " + to_string(leftStreak));
+  leftStreakText.setCharacterSize(36);
+  leftStreakText.setFillColor(Color::White);
+
+  FloatRect leftStreakSize = leftStreakText.getLocalBounds();
+  leftStreakText.setOrigin(
+      {leftStreakSize.size.x / 2.f,
+       leftStreakSize.size.y / 2.f});
+  leftStreakText.setPosition(
+      {windowSize.x / 4.f,
+       windowSize.y - (windowSize.y / 20.f)});
+
+  // Configure right-hand streak counter.
+  rightStreakText.setString("Streak: " + to_string(rightStreak));
+  rightStreakText.setCharacterSize(36);
+  rightStreakText.setFillColor(Color::White);
+
+  FloatRect rightStreakSize = rightStreakText.getLocalBounds();
+  rightStreakText.setOrigin(
+      {rightStreakSize.size.x / 2.f,
+       rightStreakSize.size.y / 2.f});
+  rightStreakText.setPosition(
+      {windowSize.x - (windowSize.x / 4.f),
+       windowSize.y - (windowSize.y / 20.f)});
+}
+
+static RectangleShape createTargetBox(Vector2u windowSize) {
+  RectangleShape targetBox(
+      {static_cast<float>(windowSize.x), 72.f});
+
+  targetBox.setOrigin(
+      {targetBox.getSize().x / 2.f,
+       targetBox.getSize().y / 2.f});
+
+  targetBox.setPosition(
+      {windowSize.x / 2.f,
+       windowSize.y - (windowSize.y / 8.5f)});
+
+  targetBox.setOutlineColor(Color::Green);
+  targetBox.setOutlineThickness(1.f);
+  targetBox.setFillColor(Color::Transparent);
+
+  return targetBox;
+}
+
 static void updateAndDrawMenuBackground(
     RenderWindow &window,
     const Font &font,
@@ -565,6 +693,47 @@ static void handleRightTypingKey(
   }
 }
 
+static void handleOffscreenMisses(
+    float windowHeight,
+    vector<randomLeftLetter> &leftLetters,
+    vector<randomRightLetter> &rightLetters,
+    HandFeedbackState &leftFeedback,
+    HandFeedbackState &rightFeedback,
+    Sound &missSound) {
+
+  // Remove an off-screen left-hand letter and record a miss.
+  if (!leftLetters.empty() &&
+      leftLetters.front().randomLeftLetterText.getPosition().y >=
+          windowHeight) {
+
+    leftLetters.erase(leftLetters.begin());
+
+    recordMiss(
+        leftFeedback.streak,
+        leftFeedback.missStreak,
+        leftFeedback.missText,
+        leftFeedback.showMissMessage,
+        leftFeedback.messageClock,
+        missSound);
+  }
+
+  // Remove an off-screen right-hand letter and record a miss.
+  if (!rightLetters.empty() &&
+      rightLetters.front().randomRightLetterText.getPosition().y >=
+          windowHeight) {
+
+    rightLetters.erase(rightLetters.begin());
+
+    recordMiss(
+        rightFeedback.streak,
+        rightFeedback.missStreak,
+        rightFeedback.missText,
+        rightFeedback.showMissMessage,
+        rightFeedback.messageClock,
+        missSound);
+  }
+}
+
 static void drawTimedFeedback(
     RenderWindow &window,
     Text &message,
@@ -602,98 +771,52 @@ int main() {
   RenderWindow window(VideoMode({1920, 1080}), "Main Menu");
   window.setVerticalSyncEnabled(true);
 
-  // create title text
+  // Create and configure the main-menu text.
   Text titleText(firacode);
-  titleText.setString("Keyboard Hero");
-  titleText.setCharacterSize(72);
-  titleText.setStyle(Text::Bold);
-  titleText.setFillColor(Color::White);
-  FloatRect titleTextSize = titleText.getLocalBounds();
-  titleText.setOrigin({titleTextSize.size.x / 2.f, titleTextSize.size.y / 2.f});
-  titleText.setPosition({window.getSize().x / 2.f, window.getSize().y / 4.f});
-
-  // create menu text
   Text menuText(firacode);
-  menuText.setString("1 -> Easy\n\n2 -> Medium\n\n3 -> "
-                     "Hard\n\nQ -> Quit");
-  menuText.setCharacterSize(36);
-  menuText.setFillColor(Color::Green);
-  FloatRect menuTextSize = menuText.getLocalBounds();
-  menuText.setOrigin({menuTextSize.size.x / 2.f, menuTextSize.size.y / 2.f});
-  menuText.setPosition({window.getSize().x / 2.f, window.getSize().y / 1.5f});
-
-  // loading error text
   Text loadingText(firacode);
-  loadingText.setString("Loading...please do not press any keys\nKeyboardHero "
-                        "may result in KeyboardFailure");
-  loadingText.setCharacterSize(36);
-  loadingText.setFillColor(Color::Yellow);
-  FloatRect loadingTextSize = loadingText.getLocalBounds();
-  loadingText.setOrigin(
-      {loadingTextSize.size.x / 2.f, loadingTextSize.size.y / 2.f});
-  loadingText.setPosition(
-      {window.getSize().x / 2.f, window.getSize().y - 76.f});
+
+  configureMenuTexts(
+      window.getSize(), titleText, menuText, loadingText);
+
   bool showLoadingMessage = true;
 
   // create game menu text
   Text gamemenuText(firacode);
-  gamemenuText.setString("TAB -> Pause\n\nESC -> Quit\n\nCTL -> Mute Song");
-  gamemenuText.setCharacterSize(36);
-  gamemenuText.setFillColor(Color::White);
-  FloatRect gamemenuTextSize = gamemenuText.getLocalBounds();
-  gamemenuText.setOrigin(
-      {gamemenuTextSize.size.x / 2.f, gamemenuTextSize.size.y / 2.f});
-  gamemenuText.setPosition(
-      {gameWindow.getSize().x / 2.f, gameWindow.getSize().y / 2.f});
 
-  // create left "miss" text
+  // Gameplay feedback positions.
+  const Vector2u gameSize = gameWindow.getSize();
+
+  const Vector2f leftFeedbackPosition{
+      gameSize.x / 9.5f,
+      gameSize.y / 2.f};
+
+  const Vector2f rightFeedbackPosition{
+      gameSize.x - (gameSize.x / 10.f),
+      gameSize.y / 2.f};
+
+  // Left-hand miss feedback.
   Text missLeftText(firacode);
-  missLeftText.setString("Miss");
-  missLeftText.setCharacterSize(24);
-  missLeftText.setFillColor(Color::Red);
-  FloatRect missLeftTextSize = missLeftText.getLocalBounds();
-  missLeftText.setOrigin(
-      {missLeftTextSize.size.x / 2.f, missLeftTextSize.size.y / 2.f});
-  missLeftText.setPosition(
-      {gameWindow.getSize().x / 9.5f, gameWindow.getSize().y / 2.f});
+  configureFeedbackText(
+      missLeftText, "Miss", Color::Red, leftFeedbackPosition);
   bool showLMissMessage = false;
 
-  // create right "miss" text
+  // Right-hand miss feedback.
   Text missRightText(firacode);
-  missRightText.setString("Miss");
-  missRightText.setCharacterSize(24);
-  missRightText.setFillColor(Color::Red);
-  FloatRect missRightTextSize = missRightText.getLocalBounds();
-  missRightText.setOrigin(
-      {missRightTextSize.size.x / 2.f, missRightTextSize.size.y / 2.f});
-  missRightText.setPosition(
-      {gameWindow.getSize().x - (gameWindow.getSize().x / 10.f),
-       gameWindow.getSize().y / 2.f});
+  configureFeedbackText(
+      missRightText, "Miss", Color::Red, rightFeedbackPosition);
   bool showRMissMessage = false;
 
-  // create left "correct!" text
+  // Left-hand correct-hit feedback.
   Text correctLeftText(firacode);
-  correctLeftText.setString("Correct!");
-  correctLeftText.setCharacterSize(24);
-  correctLeftText.setFillColor(Color::Cyan);
-  FloatRect correctLeftTextSize = correctLeftText.getLocalBounds();
-  correctLeftText.setOrigin(
-      {correctLeftTextSize.size.x / 2.f, correctLeftTextSize.size.y / 2.f});
-  correctLeftText.setPosition(
-      {gameWindow.getSize().x / 9.5f, gameWindow.getSize().y / 2.f});
+  configureFeedbackText(
+      correctLeftText, "Correct!", Color::Cyan, leftFeedbackPosition);
   bool showLCorrectMessage = false;
 
-  // create right "correct!" text
+  // Right-hand correct-hit feedback.
   Text correctRightText(firacode);
-  correctRightText.setString("Correct!");
-  correctRightText.setCharacterSize(24);
-  correctRightText.setFillColor(Color::Cyan);
-  FloatRect correctRightTextSize = correctRightText.getLocalBounds();
-  correctRightText.setOrigin(
-      {correctRightTextSize.size.x / 2.f, correctRightTextSize.size.y / 2.f});
-  correctRightText.setPosition(
-      {gameWindow.getSize().x - (gameWindow.getSize().x / 10.f),
-       gameWindow.getSize().y / 2.f});
+  configureFeedbackText(
+      correctRightText, "Correct!", Color::Cyan, rightFeedbackPosition);
   bool showRCorrectMessage = false;
 
   // counters
@@ -701,41 +824,22 @@ int main() {
   int rightStreak = 0;
   int leftMissStreak = 0;
   int rightMissStreak = 0;
-
-  // create left score streak text
+  
+  // Create gameplay HUD text.
   Text leftStreakText(firacode);
-  leftStreakText.setString("Streak: " + to_string(leftStreak));
-  leftStreakText.setCharacterSize(36);
-  leftStreakText.setFillColor(Color::White);
-  FloatRect leftStreakTextSize = leftStreakText.getLocalBounds();
-  leftStreakText.setOrigin(
-      {leftStreakTextSize.size.x / 2.f, leftStreakTextSize.size.y / 2.f});
-  leftStreakText.setPosition(
-      {gameWindow.getSize().x / 4.f,
-       gameWindow.getSize().y - (gameWindow.getSize().y / 20.f)});
-
-  // create right score streak text
   Text rightStreakText(firacode);
-  rightStreakText.setString("Streak: " + to_string(rightStreak));
-  rightStreakText.setCharacterSize(36);
-  rightStreakText.setFillColor(Color::White);
-  FloatRect rightStreakTextSize = rightStreakText.getLocalBounds();
-  rightStreakText.setOrigin(
-      {rightStreakTextSize.size.x / 2.f, rightStreakTextSize.size.y / 2.f});
-  rightStreakText.setPosition(
-      {gameWindow.getSize().x - (gameWindow.getSize().x / 4.f),
-       gameWindow.getSize().y - (gameWindow.getSize().y / 20.f)});
 
-  // create target bar for key press
-  RectangleShape targetBox({static_cast<float>(gameWindow.getSize().x), 72.f});
-  targetBox.setOrigin(
-      {targetBox.getSize().x / 2.f, targetBox.getSize().y / 2.f});
-  targetBox.setPosition(
-      {gameWindow.getSize().x / 2.f,
-       gameWindow.getSize().y - (gameWindow.getSize().y / 8.5f)});
-  targetBox.setOutlineColor(Color::Green);
-  targetBox.setOutlineThickness(1.f);
-  targetBox.setFillColor(Color::Transparent);
+  configureGameplayHudTexts(
+      gameWindow.getSize(),
+      gamemenuText,
+      leftStreakText,
+      rightStreakText,
+      leftStreak,
+      rightStreak);
+  
+  // Create the gameplay target bar.
+  RectangleShape targetBox = createTargetBox(gameWindow.getSize());
+
   bool inTargetL = false;
   bool inTargetR = false;
 
@@ -944,39 +1048,15 @@ int main() {
         // Update and draw falling gameplay letters.
         updateAndDrawGameplayLetters(
             gameWindow, randomLeftLetters, randomRightLetters, dt);
-
-        // delete struct at index 0 when it goes out of bounds
-        // left
-        if (!randomLeftLetters.empty() &&
-            randomLeftLetters[0].randomLeftLetterText.getPosition().y >=
-                gameWindow.getSize().y) {
-
-          randomLeftLetters.erase(randomLeftLetters.begin());
-          
-          recordMiss(
-              leftStreak,
-              leftMissStreak,
-              missLeftText,
-              showLMissMessage,
-              leftMessageClock,
-              missSound);
-        }
-
-        // right
-        if (!randomRightLetters.empty() &&
-            randomRightLetters[0].randomRightLetterText.getPosition().y >=
-                gameWindow.getSize().y) {
-
-          randomRightLetters.erase(randomRightLetters.begin());
-          
-          recordMiss(
-              rightStreak,
-              rightMissStreak,
-              missRightText,
-              showRMissMessage,
-              rightMessageClock,
-              missSound);
-        }
+   
+        // Remove off-screen letters and record misses.
+        handleOffscreenMisses(
+            static_cast<float>(gameWindow.getSize().y),
+            randomLeftLetters,
+            randomRightLetters,
+            leftFeedback,
+            rightFeedback,
+            missSound);
  
         // Check whether the first left-hand letter is in the target zone.
         inTargetL = !randomLeftLetters.empty() &&
