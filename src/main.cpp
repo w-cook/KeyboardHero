@@ -254,6 +254,16 @@ static void updateAndDrawGameplayLetters(
   }
 }
 
+static void setFeedbackTextSize(Text &messageText, int streak) {
+  if (streak <= 3) {
+    messageText.setCharacterSize(24);
+  } else if (streak <= 6) {
+    messageText.setCharacterSize(30);
+  } else {
+    messageText.setCharacterSize(36);
+  }
+}
+
 static bool isLetterInTargetZone(
     const Text &letter,
     const RectangleShape &targetBox) {
@@ -263,6 +273,42 @@ static bool isLetterInTargetZone(
 
   return letterY >= (targetY - 54.f) &&
          letterY <= (targetY + 36.f);
+}
+
+static void recordMiss(
+    int &streak,
+    int &missStreak,
+    Text &missText,
+    bool &showMissMessage,
+    Clock &messageClock,
+    Sound &missSound) {
+
+  ++missStreak;
+  streak = 0;
+
+  setFeedbackTextSize(missText, missStreak);
+
+  messageClock.restart();
+  showMissMessage = true;
+  missSound.play();
+}
+
+static void recordHit(
+    int &streak,
+    int &missStreak,
+    Text &correctText,
+    bool &showCorrectMessage,
+    Clock &messageClock,
+    Sound &correctSound) {
+
+  ++streak;
+  missStreak = 0;
+
+  setFeedbackTextSize(correctText, streak);
+
+  showCorrectMessage = true;
+  messageClock.restart();
+  correctSound.play();
 }
 
 int main() {
@@ -622,54 +668,39 @@ int main() {
           case Keyboard::Scancode::X:
           case Keyboard::Scancode::C:
           case Keyboard::Scancode::V:
-            if (inTargetL == false) {
-              // if theres no letters in queue to delete (spamming keys)
-              if (randomLeftLetters.size() < 1) {
-                showLMissMessage = true;
-              } else {
-                showLMissMessage = true;
+
+            if (!inTargetL) {
+
+              // An early/late keypress removes the first letter if present.
+              if (!randomLeftLetters.empty()) {
                 randomLeftLetters.erase(randomLeftLetters.begin());
               }
-              // increase/decrease counters
-              leftMissStreak += 1;
-              leftStreak = 0;
-              // change size of message
-              if (leftMissStreak <= 3) {
-                missLeftText.setCharacterSize(24);
-              }
-              if (leftMissStreak > 3 && leftMissStreak <= 6) {
-                missLeftText.setCharacterSize(30);
-              }
-              if (leftMissStreak > 6) {
-                missLeftText.setCharacterSize(36);
-              }
-              leftMessageClock.restart();
-              // play miss sound
-              missSound.play();
+
+              recordMiss(
+                  leftStreak,
+                  leftMissStreak,
+                  missLeftText,
+                  showLMissMessage,
+                  leftMessageClock,
+                  missSound);
             }
+
             if (inTargetL &&
                 !randomLeftLetters.empty() &&
                 getDescription(key->scancode) ==
                     randomLeftLetters[0].randomLeftLetterText.getString()) {
-              // increase/decrease counters
-              leftStreak += 1;
-              leftMissStreak = 0;
-              // change size of message
-              if (leftStreak <= 3) {
-                correctLeftText.setCharacterSize(24);
-              }
-              if (leftStreak > 3 && leftStreak <= 6) {
-                correctLeftText.setCharacterSize(30);
-              }
-              if (leftStreak > 6) {
-                correctLeftText.setCharacterSize(36);
-              }
-              showLCorrectMessage = true;
+
               randomLeftLetters.erase(randomLeftLetters.begin());
-              leftMessageClock.restart();
-              // play correct sound
-              correctSound.play();
+
+              recordHit(
+                  leftStreak,
+                  leftMissStreak,
+                  correctLeftText,
+                  showLCorrectMessage,
+                  leftMessageClock,
+                  correctSound);
             }
+            
             break;
           default:
             break;
@@ -689,54 +720,39 @@ int main() {
           case Keyboard::Scancode::N:
           case Keyboard::Scancode::M:
           case Keyboard::Scancode::B:
-            if (inTargetR == false) {
-              // if theres no letters in queue to delete (spamming keys)
-              if (randomRightLetters.size() < 1) {
-                showRMissMessage = true;
-              } else {
-                showRMissMessage = true;
+
+            if (!inTargetR) {
+
+              // An early/late keypress removes the first letter if present.
+              if (!randomRightLetters.empty()) {
                 randomRightLetters.erase(randomRightLetters.begin());
               }
-              // increase/decrease counters
-              rightMissStreak += 1;
-              rightStreak = 0;
-              // change size of message
-              if (rightMissStreak <= 3) {
-                missRightText.setCharacterSize(24);
-              }
-              if (rightMissStreak > 3 && rightMissStreak <= 6) {
-                missRightText.setCharacterSize(30);
-              }
-              if (rightMissStreak > 6) {
-                missRightText.setCharacterSize(36);
-              }
-              rightMessageClock.restart();
-              // play miss sound
-              missSound.play();
+
+              recordMiss(
+                  rightStreak,
+                  rightMissStreak,
+                  missRightText,
+                  showRMissMessage,
+                  rightMessageClock,
+                  missSound);
             }
+
             if (inTargetR &&
                 !randomRightLetters.empty() &&
                 getDescription(key->scancode) ==
                     randomRightLetters[0].randomRightLetterText.getString()) {
-              showRCorrectMessage = true;
+
               randomRightLetters.erase(randomRightLetters.begin());
-              // increase/decrease counters
-              rightStreak += 1;
-              rightMissStreak = 0;
-              // change size of message
-              if (rightStreak <= 3) {
-                correctRightText.setCharacterSize(24);
-              }
-              if (rightStreak > 3 && rightStreak <= 6) {
-                correctRightText.setCharacterSize(30);
-              }
-              if (rightStreak > 6) {
-                correctRightText.setCharacterSize(36);
-              }
-              rightMessageClock.restart();
-              // play correct sound
-              correctSound.play();
+
+              recordHit(
+                  rightStreak,
+                  rightMissStreak,
+                  correctRightText,
+                  showRCorrectMessage,
+                  rightMessageClock,
+                  correctSound);
             }
+
             break;
           default:
             break;
@@ -784,47 +800,32 @@ int main() {
         if (!randomLeftLetters.empty() &&
             randomLeftLetters[0].randomLeftLetterText.getPosition().y >=
                 gameWindow.getSize().y) {
+
           randomLeftLetters.erase(randomLeftLetters.begin());
-          // increase/decrease counters
-          leftMissStreak += 1;
-          leftStreak = 0;
-          // change size of message
-          if (leftMissStreak <= 3) {
-            missLeftText.setCharacterSize(24);
-          }
-          if (leftMissStreak > 3 && leftMissStreak <= 6) {
-            missLeftText.setCharacterSize(30);
-          }
-          if (leftMissStreak > 6) {
-            missLeftText.setCharacterSize(36);
-          }
-          leftMessageClock.restart();
-          showLMissMessage = true;
-          // play miss sound
-          missSound.play();
+          
+          recordMiss(
+              leftStreak,
+              leftMissStreak,
+              missLeftText,
+              showLMissMessage,
+              leftMessageClock,
+              missSound);
         }
+
         // right
         if (!randomRightLetters.empty() &&
             randomRightLetters[0].randomRightLetterText.getPosition().y >=
                 gameWindow.getSize().y) {
+                  
           randomRightLetters.erase(randomRightLetters.begin());
-          // increase/decrease counters
-          rightMissStreak += 1;
-          rightStreak = 0;
-          // change size of message
-          if (rightMissStreak <= 3) {
-            missRightText.setCharacterSize(24);
-          }
-          if (rightMissStreak > 3 && rightMissStreak <= 6) {
-            missRightText.setCharacterSize(30);
-          }
-          if (rightMissStreak > 6) {
-            missRightText.setCharacterSize(36);
-          }
-          rightMessageClock.restart();
-          showRMissMessage = true;
-          // play miss sound
-          missSound.play();
+          
+          recordMiss(
+              rightStreak,
+              rightMissStreak,
+              missRightText,
+              showRMissMessage,
+              rightMessageClock,
+              missSound);
         }
  
         // Check whether the first left-hand letter is in the target zone.
