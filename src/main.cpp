@@ -5,6 +5,7 @@
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <vector>
 
 using namespace sf;
 using namespace std;
@@ -111,6 +112,82 @@ struct randomRightLetter {
 vector<randomRightLetter> randomRightLetters;
 
 bool isPaused = false;
+
+
+static void updateAndDrawMenuBackground(
+    RenderWindow &window,
+    const Font &font,
+    vector<randomLetter> &letters,
+    Clock &spawnClock,
+    float spawnInterval,
+    float dt) {
+  // Spawn a new background letter when the interval elapses.
+  if (spawnClock.getElapsedTime().asSeconds() > spawnInterval) {
+    Text randomLetterText(font);
+    char random_letter = random_letter_generator();
+
+    randomLetterText.setString(random_letter);
+    randomLetterText.setCharacterSize(36);
+    randomLetterText.setFillColor(Color::Green);
+
+    // Every 13th letter drops red.
+    if (letters.size() % 13 == 0) {
+      randomLetterText.setFillColor(Color::Red);
+    }
+
+    FloatRect randomLetterTextSize = randomLetterText.getLocalBounds();
+    randomLetterText.setOrigin(
+        {randomLetterTextSize.size.x / 2.f,
+         randomLetterTextSize.size.y / 2.f});
+
+    float randomXvalue = random_X_value(window.getSize().x);
+    randomLetterText.setPosition({randomXvalue, -20.f});
+
+    float randomSpeed = random_speed();
+    letters.push_back({randomLetterText, randomSpeed});
+
+    spawnClock.restart();
+  }
+
+  // Update and draw existing background letters.
+  for (auto &letter : letters) {
+    letter.randomLetterText.move({0, letter.randomLetterSpeed * dt});
+    window.draw(letter.randomLetterText);
+  }
+}
+
+static void loadSoundBuffers(
+    SoundBuffer &titleSongBuffer,
+    SoundBuffer &titleTransSoundBuffer,
+    SoundBuffer &gameSongBuffer,
+    SoundBuffer &correctSoundBuffer,
+    SoundBuffer &missSoundBuffer) {
+
+  if (!titleSongBuffer.loadFromFile(
+          assetPath("Audio/StartMenu-Song.wav").string())) {
+    cerr << "Failed to load title song" << endl;
+  }
+
+  if (!titleTransSoundBuffer.loadFromFile(
+          assetPath("Audio/StartMenuTransition-Sound.wav").string())) {
+    cerr << "Failed to load title transition sound" << endl;
+  }
+
+  if (!gameSongBuffer.loadFromFile(
+          assetPath("Audio/gameSong1.wav").string())) {
+    cerr << "Failed to load game song" << endl;
+  }
+
+  if (!correctSoundBuffer.loadFromFile(
+          assetPath("Audio/correctHit.wav").string())) {
+    cerr << "Failed to load correct hit sound" << endl;
+  }
+
+  if (!missSoundBuffer.loadFromFile(
+          assetPath("Audio/missSound.wav").string())) {
+    cerr << "Failed to load miss sound" << endl;
+  }
+}
 
 int main() {
 
@@ -278,26 +355,12 @@ int main() {
   SoundBuffer correctSoundBuffer;
   SoundBuffer missSoundBuffer;
 
-  // load to buffers
-  if (!titleSongBuffer.loadFromFile(
-          assetPath("Audio/StartMenu-Song.wav").string())) {
-    cerr << "Failed to load title song" << endl;
-  }
-  if (!titleTransSoundBuffer.loadFromFile(
-          assetPath("Audio/StartMenuTransition-Sound.wav").string())) {
-    cerr << "Failed to load title transition sound" << endl;
-  }
-  if (!gameSongBuffer.loadFromFile(assetPath("Audio/gameSong1.wav").string())) {
-    cerr << "Failed to load game song" << endl;
-  }
-  if (!correctSoundBuffer.loadFromFile(
-          assetPath("Audio/correctHit.wav").string())) {
-    cerr << "Failed to load correct hit sound" << endl;
-  }
-  if (!missSoundBuffer.loadFromFile(
-          assetPath("Audio/missSound.wav").string())) {
-    cerr << "Failed to load miss sound" << endl;
-  }
+  loadSoundBuffers(
+      titleSongBuffer,
+      titleTransSoundBuffer,
+      gameSongBuffer,
+      correctSoundBuffer,
+      missSoundBuffer);
 
   // sound players
   Sound titleSong(titleSongBuffer);
@@ -398,35 +461,9 @@ int main() {
       window.draw(titleText);
       window.draw(menuText);
 
-      // create matrix-style background - menu
-      if (spawnClock.getElapsedTime().asSeconds() > bgSpawnInterval) {
-        Text randomLetterText(firacode);
-        char random_letter = random_letter_generator();
-        randomLetterText.setString(random_letter);
-        randomLetterText.setCharacterSize(36);
-        randomLetterText.setFillColor(Color::Green);
-        // every 13th letter drops red
-        if (randomLetters.size() % 13 == 0) {
-          randomLetterText.setFillColor(Color::Red);
-        }
-        FloatRect randomLetterTextSize = randomLetterText.getLocalBounds();
-        randomLetterText.setOrigin({randomLetterTextSize.size.x / 2.f,
-                                    randomLetterTextSize.size.y / 2.f});
-        float randomXvalue = random_X_value(window.getSize().x);
-        randomLetterText.setPosition({randomXvalue, -20.f});
-
-        // add letters to vector with random speed
-        float randomSpeed = random_speed();
-        randomLetters.push_back({randomLetterText, randomSpeed});
-
-        spawnClock.restart();
-      }
-
-      // update all falling letters
-      for (auto &letter : randomLetters) {
-        letter.randomLetterText.move({0, letter.randomLetterSpeed * dt});
-        window.draw(letter.randomLetterText);
-      }
+      // Update and draw the animated menu background.
+      updateAndDrawMenuBackground(
+          window, firacode, randomLetters, spawnClock, bgSpawnInterval, dt);
 
       // show loading message
       if (showLoadingMessage) {
