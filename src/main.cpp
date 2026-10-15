@@ -189,6 +189,82 @@ static void loadSoundBuffers(
   }
 }
 
+static void spawnLeftLetter(
+    vector<randomLeftLetter> &letters,
+    const Font &font,
+    int windowWidth,
+    float speed) {
+
+  Text letterText(font);
+  char letter = random_left_letter_generator();
+
+  letterText.setString(letter);
+  letterText.setCharacterSize(36);
+  letterText.setFillColor(Color::Green);
+
+  FloatRect textSize = letterText.getLocalBounds();
+  letterText.setOrigin(
+      {textSize.size.x / 2.f, textSize.size.y / 2.f});
+
+  float x = random_left_X_value(windowWidth);
+  letterText.setPosition({x, -20.f});
+
+  letters.push_back({letterText, speed});
+}
+
+static void spawnRightLetter(
+    vector<randomRightLetter> &letters,
+    const Font &font,
+    int windowWidth,
+    float speed) {
+
+  Text letterText(font);
+  char letter = random_right_letter_generator();
+
+  letterText.setString(letter);
+  letterText.setCharacterSize(36);
+  letterText.setFillColor(Color::Green);
+
+  FloatRect textSize = letterText.getLocalBounds();
+  letterText.setOrigin(
+      {textSize.size.x / 2.f, textSize.size.y / 2.f});
+
+  float x = random_right_X_value(windowWidth);
+  letterText.setPosition({x, -20.f});
+
+  letters.push_back({letterText, speed});
+}
+
+static void updateAndDrawGameplayLetters(
+    RenderWindow &window,
+    vector<randomLeftLetter> &leftLetters,
+    vector<randomRightLetter> &rightLetters,
+    float dt) {
+
+  // Move and draw left-hand letters.
+  for (auto &letter : leftLetters) {
+    letter.randomLeftLetterText.move({0, letter.speed * dt});
+    window.draw(letter.randomLeftLetterText);
+  }
+
+  // Move and draw right-hand letters.
+  for (auto &letter : rightLetters) {
+    letter.randomRightLetterText.move({0, letter.speed * dt});
+    window.draw(letter.randomRightLetterText);
+  }
+}
+
+static bool isLetterInTargetZone(
+    const Text &letter,
+    const RectangleShape &targetBox) {
+
+  const float letterY = letter.getPosition().y;
+  const float targetY = targetBox.getPosition().y;
+
+  return letterY >= (targetY - 54.f) &&
+         letterY <= (targetY + 36.f);
+}
+
 int main() {
 
   // settings
@@ -676,60 +752,32 @@ int main() {
       if (!isPaused) {
 
         gameWindow.draw(targetBox);
-
-        // make left hand letters fall
+       
+        // Spawn left-hand letters at the configured interval.
         if (leftSpawnClock.getElapsedTime().asSeconds() > leftSpawnInterval) {
-
-          // left hand letters
-          Text leftLetterText(firacode);
-          char randomLeftLetter = random_left_letter_generator();
-          leftLetterText.setString(randomLeftLetter);
-          leftLetterText.setCharacterSize(36);
-          leftLetterText.setFillColor(Color::Green);
-          FloatRect leftLetterTextSize = leftLetterText.getLocalBounds();
-          leftLetterText.setOrigin({leftLetterTextSize.size.x / 2.f,
-                                    leftLetterTextSize.size.y / 2.f});
-          float randomLeftXvalue = random_left_X_value(gameWindow.getSize().x);
-          leftLetterText.setPosition({randomLeftXvalue, -20.f});
-
-          // add left letters to vector
-          randomLeftLetters.push_back({leftLetterText, leftLetterSpeed});
+          spawnLeftLetter(
+              randomLeftLetters,
+              firacode,
+              gameWindow.getSize().x,
+              leftLetterSpeed);
 
           leftSpawnClock.restart();
         }
 
-        // make right hand letters fall
+        // Spawn right-hand letters at the configured interval.
         if (rightSpawnClock.getElapsedTime().asSeconds() > rightSpawnInterval) {
-
-          // right hand letters
-          Text rightLetterText(firacode);
-          char randomRightLetter = random_right_letter_generator();
-          rightLetterText.setString(randomRightLetter);
-          rightLetterText.setCharacterSize(36);
-          rightLetterText.setFillColor(Color::Green);
-          FloatRect rightLetterTextSize = rightLetterText.getLocalBounds();
-          rightLetterText.setOrigin({rightLetterTextSize.size.x / 2.f,
-                                     rightLetterTextSize.size.y / 2.f});
-          float randomRightXvalue =
-              random_right_X_value(gameWindow.getSize().x);
-          rightLetterText.setPosition({randomRightXvalue, -20.f});
-
-          // add right letters to vector
-          randomRightLetters.push_back({rightLetterText, rightLetterSpeed});
+          spawnRightLetter(
+              randomRightLetters,
+              firacode,
+              gameWindow.getSize().x,
+              rightLetterSpeed);
 
           rightSpawnClock.restart();
         }
 
-        // update all falling letters
-        // for each letter object in letters vector
-        for (auto &leftLetter : randomLeftLetters) {
-          leftLetter.randomLeftLetterText.move({0, leftLetter.speed * dt});
-          gameWindow.draw(leftLetter.randomLeftLetterText);
-        }
-        for (auto &rightLetter : randomRightLetters) {
-          rightLetter.randomRightLetterText.move({0, rightLetter.speed * dt});
-          gameWindow.draw(rightLetter.randomRightLetterText);
-        }
+        // Update and draw falling gameplay letters.
+        updateAndDrawGameplayLetters(
+            gameWindow, randomLeftLetters, randomRightLetters, dt);
 
         // delete struct at index 0 when it goes out of bounds
         // left
@@ -778,30 +826,18 @@ int main() {
           // play miss sound
           missSound.play();
         }
+ 
+        // Check whether the first left-hand letter is in the target zone.
+        inTargetL = !randomLeftLetters.empty() &&
+                    isLetterInTargetZone(
+                        randomLeftLetters.front().randomLeftLetterText,
+                        targetBox);
 
-        // left letter collisions with target box
-        if (randomLeftLetters.empty()) {
-          inTargetL = false;
-        } else {
-          const float letterY =
-              randomLeftLetters.front().randomLeftLetterText.getPosition().y;
-
-          inTargetL =
-              letterY >= (targetBox.getPosition().y - 54.f) &&
-              letterY <= (targetBox.getPosition().y + 36.f);
-        }
-
-        // right letter collisions with target box
-        if (randomRightLetters.empty()) {
-          inTargetR = false;
-        } else {
-          const float letterY =
-              randomRightLetters.front().randomRightLetterText.getPosition().y;
-
-          inTargetR =
-              letterY >= (targetBox.getPosition().y - 54.f) &&
-              letterY <= (targetBox.getPosition().y + 36.f);
-        }
+        // Check whether the first right-hand letter is in the target zone.
+        inTargetR = !randomRightLetters.empty() &&
+                    isLetterInTargetZone(
+                        randomRightLetters.front().randomRightLetterText,
+                        targetBox);
 
         // show left "miss" message
         if (showLMissMessage) {
