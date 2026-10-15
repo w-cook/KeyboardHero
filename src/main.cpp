@@ -113,6 +113,17 @@ vector<randomRightLetter> randomRightLetters;
 
 bool isPaused = false;
 
+struct MenuInputContext {
+  RenderWindow &menuWindow;
+  RenderWindow &gameWindow;
+  Sound &titleSong;
+  Sound &transitionSound;
+
+  float &leftSpawnInterval;
+  float &leftLetterSpeed;
+  float &rightSpawnInterval;
+  float &rightLetterSpeed;
+};
 
 static void updateAndDrawMenuBackground(
     RenderWindow &window,
@@ -186,6 +197,73 @@ static void loadSoundBuffers(
   if (!missSoundBuffer.loadFromFile(
           assetPath("Audio/missSound.wav").string())) {
     cerr << "Failed to load miss sound" << endl;
+  }
+}
+
+static void configureDifficulty(
+    Keyboard::Scancode selection,
+    float &leftSpawnInterval,
+    float &leftLetterSpeed,
+    float &rightSpawnInterval,
+    float &rightLetterSpeed) {
+
+  switch (selection) {
+  case Keyboard::Scancode::Num1:
+    // Easy
+    leftSpawnInterval = random_spawn_float_e();
+    leftLetterSpeed = 200.f;
+    rightSpawnInterval = random_spawn_float_e();
+    rightLetterSpeed = 200.f;
+    break;
+
+  case Keyboard::Scancode::Num2:
+    // Medium
+    leftSpawnInterval = random_spawn_float_m();
+    leftLetterSpeed = 300.f;
+    rightSpawnInterval = random_spawn_float_m();
+    rightLetterSpeed = 300.f;
+    break;
+
+  case Keyboard::Scancode::Num3:
+    // Hard
+    leftSpawnInterval = random_spawn_float_h();
+    leftLetterSpeed = 400.f;
+    rightSpawnInterval = random_spawn_float_h();
+    rightLetterSpeed = 400.f;
+    break;
+
+  default:
+    break;
+  }
+}
+
+static void handleMenuKeyPress(
+    Keyboard::Scancode scancode,
+    MenuInputContext &context) {
+
+  // Q -> quit
+  if (scancode == Keyboard::Scancode::Q) {
+    context.menuWindow.close();
+    context.gameWindow.close();
+    context.titleSong.stop();
+  }
+
+  // Select difficulty and transition into gameplay.
+  if (scancode == Keyboard::Scancode::Num1 ||
+      scancode == Keyboard::Scancode::Num2 ||
+      scancode == Keyboard::Scancode::Num3) {
+
+    context.menuWindow.close();
+    context.titleSong.stop();
+    context.transitionSound.play();
+    context.gameWindow.display();
+
+    configureDifficulty(
+        scancode,
+        context.leftSpawnInterval,
+        context.leftLetterSpeed,
+        context.rightSpawnInterval,
+        context.rightLetterSpeed);
   }
 }
 
@@ -487,6 +565,21 @@ static void handleRightTypingKey(
   }
 }
 
+static void drawTimedFeedback(
+    RenderWindow &window,
+    Text &message,
+    bool &showMessage,
+    const Clock &messageClock) {
+
+  if (showMessage) {
+    window.draw(message);
+
+    if (messageClock.getElapsedTime().asSeconds() >= 0.25f) {
+      showMessage = false;
+    }
+  }
+}
+
 int main() {
 
   // settings
@@ -700,6 +793,16 @@ int main() {
   float leftSpawnInterval;
   float rightSpawnInterval;
 
+  MenuInputContext menuInput{
+      window,
+      gameWindow,
+      titleSong,
+      titleTransSound,
+      leftSpawnInterval,
+      leftLetterSpeed,
+      rightSpawnInterval,
+      rightLetterSpeed};
+
   // start title song
   titleSong.setLooping(true);
   titleSong.setVolume(50);
@@ -725,47 +828,7 @@ int main() {
         // keyboard input - key pressed //
         if (auto *key = event->getIf<sf::Event::KeyPressed>()) {
 
-          // Q -> quit
-          if (key->scancode == Keyboard::Scancode::Q) {
-            window.close();
-            gameWindow.close();
-            titleSong.stop();
-          }
-          // 1 -> close menu window, begin game window in easy
-          if (key->scancode == Keyboard::Scancode::Num1) {
-            window.close();
-            titleSong.stop();
-            titleTransSound.play();
-            gameWindow.display();
-            leftSpawnInterval = random_spawn_float_e();
-            leftLetterSpeed = 200.f;
-            rightSpawnInterval = random_spawn_float_e();
-            rightLetterSpeed = 200.f;
-          }
-
-          // 2 -> close menu window, begin game window in medium
-          if (key->scancode == Keyboard::Scancode::Num2) {
-            window.close();
-            titleSong.stop();
-            titleTransSound.play();
-            gameWindow.display();
-            leftSpawnInterval = random_spawn_float_m();
-            leftLetterSpeed = 300.f;
-            rightSpawnInterval = random_spawn_float_m();
-            rightLetterSpeed = 300.f;
-          }
-
-          // 3 -> close menu window, begin game window in hard
-          if (key->scancode == Keyboard::Scancode::Num3) {
-            window.close();
-            titleSong.stop();
-            titleTransSound.play();
-            gameWindow.display();
-            leftSpawnInterval = random_spawn_float_h();
-            leftLetterSpeed = 400.f;
-            rightSpawnInterval = random_spawn_float_h();
-            rightLetterSpeed = 400.f;
-          }
+          handleMenuKeyPress(key->scancode, menuInput);
         } // END key pressed handling
       } // END menu loop event handling
 
@@ -926,38 +989,19 @@ int main() {
                     isLetterInTargetZone(
                         randomRightLetters.front().randomRightLetterText,
                         targetBox);
+        
+        // Draw active hit/miss feedback for both hands.
+        drawTimedFeedback(
+            gameWindow, missLeftText, showLMissMessage, leftMessageClock);
 
-        // show left "miss" message
-        if (showLMissMessage) {
-          gameWindow.draw(missLeftText);
-          if (leftMessageClock.getElapsedTime().asSeconds() >= 0.25f) {
-            showLMissMessage = false;
-          }
-        }
+        drawTimedFeedback(
+            gameWindow, missRightText, showRMissMessage, rightMessageClock);
 
-        // show right "miss" message
-        if (showRMissMessage) {
-          gameWindow.draw(missRightText);
-          if (rightMessageClock.getElapsedTime().asSeconds() >= 0.25f) {
-            showRMissMessage = false;
-          }
-        }
+        drawTimedFeedback(
+            gameWindow, correctLeftText, showLCorrectMessage, leftMessageClock);
 
-        // show left "correct!" message
-        if (showLCorrectMessage) {
-          gameWindow.draw(correctLeftText);
-          if (leftMessageClock.getElapsedTime().asSeconds() >= 0.25f) {
-            showLCorrectMessage = false;
-          }
-        }
-
-        // show right "correct!" message
-        if (showRCorrectMessage) {
-          gameWindow.draw(correctRightText);
-          if (rightMessageClock.getElapsedTime().asSeconds() >= 0.25f) {
-            showRCorrectMessage = false;
-          }
-        }
+        drawTimedFeedback(
+            gameWindow, correctRightText, showRCorrectMessage, rightMessageClock);
 
         leftStreakText.setString("Streak: " + to_string(leftStreak));
         rightStreakText.setString("Streak: " + to_string(rightStreak));
