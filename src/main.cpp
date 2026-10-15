@@ -189,6 +189,86 @@ static void loadSoundBuffers(
   }
 }
 
+static void handleGameplayControls(
+    Keyboard::Scancode scancode,
+    RenderWindow &gameWindow,
+    Sound &gameSong,
+    bool &isPaused,
+    bool &isMuted) {
+
+  // Escape -> quit
+  if (scancode == Keyboard::Scancode::Escape) {
+    gameWindow.close();
+    gameSong.stop();
+  }
+
+  // Tab -> pause or resume
+  if (scancode == Keyboard::Scancode::Tab) {
+    isPaused = !isPaused;
+
+    if (gameSong.getStatus() == SoundSource::Status::Playing) {
+      gameSong.pause();
+    } else {
+      gameSong.play();
+    }
+  }
+
+  // Ctrl -> mute or unmute gameplay music
+  if (scancode == Keyboard::Scancode::LControl ||
+      scancode == Keyboard::Scancode::RControl) {
+    isMuted = !isMuted;
+
+    if (isMuted) {
+      gameSong.setVolume(0);
+    } else {
+      gameSong.setVolume(60);
+    }
+  }
+}
+
+enum class TypingHand {
+  None,
+  Left,
+  Right
+};
+
+static TypingHand classifyTypingKey(Keyboard::Scancode scancode) {
+  switch (scancode) {
+  case Keyboard::Scancode::Q:
+  case Keyboard::Scancode::W:
+  case Keyboard::Scancode::E:
+  case Keyboard::Scancode::R:
+  case Keyboard::Scancode::T:
+  case Keyboard::Scancode::A:
+  case Keyboard::Scancode::S:
+  case Keyboard::Scancode::D:
+  case Keyboard::Scancode::F:
+  case Keyboard::Scancode::G:
+  case Keyboard::Scancode::Z:
+  case Keyboard::Scancode::X:
+  case Keyboard::Scancode::C:
+  case Keyboard::Scancode::V:
+    return TypingHand::Left;
+
+  case Keyboard::Scancode::Y:
+  case Keyboard::Scancode::U:
+  case Keyboard::Scancode::I:
+  case Keyboard::Scancode::O:
+  case Keyboard::Scancode::P:
+  case Keyboard::Scancode::H:
+  case Keyboard::Scancode::J:
+  case Keyboard::Scancode::K:
+  case Keyboard::Scancode::L:
+  case Keyboard::Scancode::N:
+  case Keyboard::Scancode::M:
+  case Keyboard::Scancode::B:
+    return TypingHand::Right;
+
+  default:
+    return TypingHand::None;
+  }
+}
+
 static void spawnLeftLetter(
     vector<randomLeftLetter> &letters,
     const Font &font,
@@ -309,6 +389,102 @@ static void recordHit(
   showCorrectMessage = true;
   messageClock.restart();
   correctSound.play();
+}
+
+struct HandFeedbackState {
+  int &streak;
+  int &missStreak;
+  Text &missText;
+  Text &correctText;
+  bool &showMissMessage;
+  bool &showCorrectMessage;
+  Clock &messageClock;
+};
+
+static void handleLeftTypingKey(
+    Keyboard::Scancode scancode,
+    bool inTarget,
+    vector<randomLeftLetter> &letters,
+    HandFeedbackState &feedback,
+    Sound &missSound,
+    Sound &correctSound) {
+
+  // A keypress outside the target zone counts as a miss.
+  if (!inTarget) {
+
+    // Remove the first letter if one is available.
+    if (!letters.empty()) {
+      letters.erase(letters.begin());
+    }
+
+    recordMiss(
+        feedback.streak,
+        feedback.missStreak,
+        feedback.missText,
+        feedback.showMissMessage,
+        feedback.messageClock,
+        missSound);
+  }
+
+  // A matching keypress inside the target zone is a hit.
+  if (inTarget &&
+      !letters.empty() &&
+      getDescription(scancode) ==
+          letters.front().randomLeftLetterText.getString()) {
+
+    letters.erase(letters.begin());
+
+    recordHit(
+        feedback.streak,
+        feedback.missStreak,
+        feedback.correctText,
+        feedback.showCorrectMessage,
+        feedback.messageClock,
+        correctSound);
+  }
+}
+
+static void handleRightTypingKey(
+    Keyboard::Scancode scancode,
+    bool inTarget,
+    vector<randomRightLetter> &letters,
+    HandFeedbackState &feedback,
+    Sound &missSound,
+    Sound &correctSound) {
+
+  // A keypress outside the target zone counts as a miss.
+  if (!inTarget) {
+
+    // Remove the first letter if one is available.
+    if (!letters.empty()) {
+      letters.erase(letters.begin());
+    }
+
+    recordMiss(
+        feedback.streak,
+        feedback.missStreak,
+        feedback.missText,
+        feedback.showMissMessage,
+        feedback.messageClock,
+        missSound);
+  }
+
+  // A matching keypress inside the target zone is a hit.
+  if (inTarget &&
+      !letters.empty() &&
+      getDescription(scancode) ==
+          letters.front().randomRightLetterText.getString()) {
+
+    letters.erase(letters.begin());
+
+    recordHit(
+        feedback.streak,
+        feedback.missStreak,
+        feedback.correctText,
+        feedback.showCorrectMessage,
+        feedback.messageClock,
+        correctSound);
+  }
 }
 
 int main() {
@@ -501,6 +677,23 @@ int main() {
   Clock loadingClock;
   float bgSpawnInterval = 0.2f;
 
+  HandFeedbackState leftFeedback{
+      leftStreak,
+      leftMissStreak,
+      missLeftText,
+      correctLeftText,
+      showLMissMessage,
+      showLCorrectMessage,
+      leftMessageClock};
+  HandFeedbackState rightFeedback{
+      rightStreak,
+      rightMissStreak,
+      missRightText,
+      correctRightText,
+      showRMissMessage,
+      showRCorrectMessage,
+      rightMessageClock};
+
   // left and right letter attribute declarations
   float leftLetterSpeed;
   float rightLetterSpeed;
@@ -625,137 +818,31 @@ int main() {
         // keyboard input - key pressed //
         if (auto *key = event->getIf<sf::Event::KeyPressed>()) {
 
-          // Escape -> quit
-          if (key->scancode == Keyboard::Scancode::Escape) {
-            gameWindow.close();
-            gameSong.stop();
+          handleGameplayControls(
+              key->scancode, gameWindow, gameSong, isPaused, isMuted);
+
+          const TypingHand typingHand = classifyTypingKey(key->scancode);
+
+          if (typingHand == TypingHand::Left) {
+
+            handleLeftTypingKey(
+                key->scancode,
+                inTargetL,
+                randomLeftLetters,
+                leftFeedback,
+                missSound,
+                correctSound);
           }
 
-          // Tab -> pause window
-          if (key->scancode == Keyboard::Scancode::Tab) {
-            isPaused = !isPaused;
-            if (gameSong.getStatus() == SoundSource::Status::Playing) {
-              gameSong.pause();
-            } else {
-              gameSong.play();
-            }
-          }
+          if (typingHand == TypingHand::Right) {
 
-          // CTRL -> mute game song
-          if (key->scancode == Keyboard::Scancode::LControl ||
-              key->scancode == Keyboard::Scancode::RControl) {
-            isMuted = !isMuted;
-            if (isMuted) {
-              gameSong.setVolume(0);
-            } else {
-              gameSong.setVolume(60);
-            }
-          }
-
-          // left hand switch
-          switch (key->scancode) {
-          case Keyboard::Scancode::Q:
-          case Keyboard::Scancode::W:
-          case Keyboard::Scancode::E:
-          case Keyboard::Scancode::R:
-          case Keyboard::Scancode::T:
-          case Keyboard::Scancode::A:
-          case Keyboard::Scancode::S:
-          case Keyboard::Scancode::D:
-          case Keyboard::Scancode::F:
-          case Keyboard::Scancode::G:
-          case Keyboard::Scancode::Z:
-          case Keyboard::Scancode::X:
-          case Keyboard::Scancode::C:
-          case Keyboard::Scancode::V:
-
-            if (!inTargetL) {
-
-              // An early/late keypress removes the first letter if present.
-              if (!randomLeftLetters.empty()) {
-                randomLeftLetters.erase(randomLeftLetters.begin());
-              }
-
-              recordMiss(
-                  leftStreak,
-                  leftMissStreak,
-                  missLeftText,
-                  showLMissMessage,
-                  leftMessageClock,
-                  missSound);
-            }
-
-            if (inTargetL &&
-                !randomLeftLetters.empty() &&
-                getDescription(key->scancode) ==
-                    randomLeftLetters[0].randomLeftLetterText.getString()) {
-
-              randomLeftLetters.erase(randomLeftLetters.begin());
-
-              recordHit(
-                  leftStreak,
-                  leftMissStreak,
-                  correctLeftText,
-                  showLCorrectMessage,
-                  leftMessageClock,
-                  correctSound);
-            }
-            
-            break;
-          default:
-            break;
-          }
-
-          // right hand switch
-          switch (key->scancode) {
-          case Keyboard::Scancode::Y:
-          case Keyboard::Scancode::U:
-          case Keyboard::Scancode::I:
-          case Keyboard::Scancode::O:
-          case Keyboard::Scancode::P:
-          case Keyboard::Scancode::H:
-          case Keyboard::Scancode::J:
-          case Keyboard::Scancode::K:
-          case Keyboard::Scancode::L:
-          case Keyboard::Scancode::N:
-          case Keyboard::Scancode::M:
-          case Keyboard::Scancode::B:
-
-            if (!inTargetR) {
-
-              // An early/late keypress removes the first letter if present.
-              if (!randomRightLetters.empty()) {
-                randomRightLetters.erase(randomRightLetters.begin());
-              }
-
-              recordMiss(
-                  rightStreak,
-                  rightMissStreak,
-                  missRightText,
-                  showRMissMessage,
-                  rightMessageClock,
-                  missSound);
-            }
-
-            if (inTargetR &&
-                !randomRightLetters.empty() &&
-                getDescription(key->scancode) ==
-                    randomRightLetters[0].randomRightLetterText.getString()) {
-
-              randomRightLetters.erase(randomRightLetters.begin());
-
-              recordHit(
-                  rightStreak,
-                  rightMissStreak,
-                  correctRightText,
-                  showRCorrectMessage,
-                  rightMessageClock,
-                  correctSound);
-            }
-
-            break;
-          default:
-            break;
+            handleRightTypingKey(
+                key->scancode,
+                inTargetR,
+                randomRightLetters,
+                rightFeedback,
+                missSound,
+                correctSound);
           }
 
         } // END key pressed handling
@@ -816,7 +903,7 @@ int main() {
         if (!randomRightLetters.empty() &&
             randomRightLetters[0].randomRightLetterText.getPosition().y >=
                 gameWindow.getSize().y) {
-                  
+
           randomRightLetters.erase(randomRightLetters.begin());
           
           recordMiss(
