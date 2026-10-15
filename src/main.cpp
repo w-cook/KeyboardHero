@@ -1,10 +1,10 @@
 #include <SFML/Audio.hpp>
 #include <SFML/Graphics.hpp>
 #include <cstdlib>
-#include <ctime>
 #include <filesystem>
 #include <iostream>
 #include <string>
+#include <vector>
 
 using namespace sf;
 using namespace std;
@@ -13,800 +13,1128 @@ using namespace std;
 #include <mach-o/dyld.h>
 #endif
 
-// path functions
+// Letter types
+struct BackgroundLetter {
+  Text text;
+  float speed;
+};
+
+struct LeftHandLetter {
+  Text text;
+  float speed;
+};
+
+struct RightHandLetter {
+  Text text;
+  float speed;
+};
+
+// Input and feedback types
+enum class TypingHand {
+  None,
+  Left,
+  Right
+};
+
+struct MenuInputContext {
+  RenderWindow &menuWindow;
+  RenderWindow &gameWindow;
+  Sound &titleSong;
+  Sound &transitionSound;
+
+  float &leftSpawnInterval;
+  float &leftLetterSpeed;
+  float &rightSpawnInterval;
+  float &rightLetterSpeed;
+};
+
+struct HandFeedbackState {
+  int &streak;
+  int &missStreak;
+  Text &missText;
+  Text &correctText;
+  bool &showMissMessage;
+  bool &showCorrectMessage;
+  Clock &messageClock;
+};
+
+// Global state (ownership to be addressed in Phase 2)
+vector<BackgroundLetter> menuBackgroundLetters;
+vector<LeftHandLetter> leftFallingLetters;
+vector<RightHandLetter> rightFallingLetters;
+
+bool isPaused = false;
+
+// Asset utilities
 static std::filesystem::path getExecutableDir() {
 #if defined(__APPLE__)
   uint32_t size = 0;
   _NSGetExecutablePath(nullptr, &size);
-  std::string buf(size, '\0');
-  if (_NSGetExecutablePath(buf.data(), &size) != 0) {
+  std::string executablePathBuffer(size, '\0');
+  if (_NSGetExecutablePath(executablePathBuffer.data(), &size) != 0) {
     return std::filesystem::current_path(); // fallback
   }
-  return std::filesystem::weakly_canonical(buf).parent_path();
+  return std::filesystem::weakly_canonical(executablePathBuffer).parent_path();
 #else
   return std::filesystem::current_path();
 #endif
 }
 
 static std::filesystem::path assetPath(const std::string &insideAssets) {
-  // Common case: assets folder sits next to the executable
-  auto p = getExecutableDir() / "assets" / insideAssets;
-  if (std::filesystem::exists(p))
-    return p;
+  // First check for assets next to the executable.
+  auto adjacentAssetPath = getExecutableDir() / "assets" / insideAssets;
+  if (std::filesystem::exists(adjacentAssetPath))
+    return adjacentAssetPath;
 
-  // macOS .app bundle case: .../MyGame.app/Contents/Resources/assets/...
-  auto p2 = std::filesystem::weakly_canonical(
+  // Check the macOS application bundle's Resources directory.
+  auto bundleAssetPath = std::filesystem::weakly_canonical(
       getExecutableDir() / ".." / "Resources" / "assets" / insideAssets);
-  if (std::filesystem::exists(p2))
-    return p2;
+  if (std::filesystem::exists(bundleAssetPath))
+    return bundleAssetPath;
 
-  // last resort: working directory
+  // Fall back to the working directory.
   return std::filesystem::current_path() / "assets" / insideAssets;
 }
 
-// random letter functions
-char random_letter_generator() { return 'A' + rand() % 26; }
+static void loadSoundBuffers(
+    SoundBuffer &titleSongBuffer,
+    SoundBuffer &titleTransSoundBuffer,
+    SoundBuffer &gameSongBuffer,
+    SoundBuffer &correctSoundBuffer,
+    SoundBuffer &missSoundBuffer) {
+  if (!titleSongBuffer.loadFromFile(
+          assetPath("Audio/StartMenu-Song.wav").string())) {
+    cerr << "Failed to load title song" << endl;
+  }
 
-char random_left_letter_generator() {
+  if (!titleTransSoundBuffer.loadFromFile(
+          assetPath("Audio/StartMenuTransition-Sound.wav").string())) {
+    cerr << "Failed to load title transition sound" << endl;
+  }
+
+  if (!gameSongBuffer.loadFromFile(
+          assetPath("Audio/gameSong1.wav").string())) {
+    cerr << "Failed to load game song" << endl;
+  }
+
+  if (!correctSoundBuffer.loadFromFile(
+          assetPath("Audio/correctHit.wav").string())) {
+    cerr << "Failed to load correct hit sound" << endl;
+  }
+
+  if (!missSoundBuffer.loadFromFile(
+          assetPath("Audio/missSound.wav").string())) {
+    cerr << "Failed to load miss sound" << endl;
+  }
+}
+
+// Random generation
+char generateBackgroundLetter() { return 'A' + rand() % 26; }
+
+char generateLeftHandLetter() {
   vector<char> leftHandLetters = {'Q', 'W', 'E', 'R', 'T', 'A', 'S',
                                   'D', 'F', 'G', 'Z', 'X', 'C', 'V'};
   int index = rand() % leftHandLetters.size();
   return leftHandLetters[index];
 }
 
-char random_right_letter_generator() {
+char generateRightHandLetter() {
   vector<char> rightHandLetters = {'Y', 'U', 'I', 'O', 'P', 'H',
                                    'J', 'K', 'L', 'N', 'M', 'B'};
   int index = rand() % rightHandLetters.size();
   return rightHandLetters[index];
 }
 
-// random x value functions
-float random_X_value(int windowSize) { return rand() % (windowSize + 1); }
+float generateBackgroundXPosition(int windowWidth) { return rand() % (windowWidth + 1); }
 
-float random_left_X_value(int windowSize) {
-  float padding = windowSize * 0.15f;
+float generateLeftHandXPosition(int windowWidth) {
+  float padding = windowWidth * 0.15f;
   float minLeftX = padding;
-  float maxLeftX = (windowSize * 0.5f) - padding;
+  float maxLeftX = (windowWidth * 0.5f) - padding;
   return minLeftX + rand() % static_cast<int>(maxLeftX - minLeftX + 1);
 }
 
-float random_right_X_value(int windowSize) {
-  float padding = windowSize * 0.15f;
-  float minRightX = (windowSize * 0.5f) + padding;
-  float maxRightX = windowSize - padding;
+float generateRightHandXPosition(int windowWidth) {
+  float padding = windowWidth * 0.15f;
+  float minRightX = (windowWidth * 0.5f) + padding;
+  float maxRightX = windowWidth - padding;
   return minRightX + rand() % static_cast<int>(maxRightX - minRightX + 1);
 }
 
-float random_speed() { return 300 + rand() % 601; }
+float generateBackgroundLetterSpeed() { return 300 + rand() % 601; }
 
-float random_spawn_float_h() {
+float generateHardSpawnInterval() {
   return 0.5 + (rand() % 151) / 100.0;
 } // 0.5 - 2.0 step 0.01
-float random_spawn_float_m() {
+float generateMediumSpawnInterval() {
   return 1.5 + (rand() % 151) / 100.0;
 } // 1.5 - 3.0 step 0.01
-float random_spawn_float_e() {
+float generateEasySpawnInterval() {
   return 2.5 + (rand() % 151) / 100.0;
 } // 2.5 - 4.0 step 0.01
 
-struct randomLetter {
-  Text randomLetterText;
-  float randomLetterSpeed;
-};
-vector<randomLetter> randomLetters;
-
-struct randomLeftLetter {
-  Text randomLeftLetterText;
-  float speed;
-  float center = randomLeftLetterText.getLocalBounds().getCenter().y;
-};
-vector<randomLeftLetter> randomLeftLetters;
-
-struct randomRightLetter {
-  Text randomRightLetterText;
-  float speed;
-  float center = randomRightLetterText.getLocalBounds().getCenter().y;
-};
-vector<randomRightLetter> randomRightLetters;
-
-bool isPaused = false;
-
-int main() {
-
-  // settings
-  ContextSettings settings;
-  settings.antiAliasingLevel = 4;
-
-  // load font - FiraCodeNerdFontMono-Light
-  auto Fira_Path = assetPath("Fonts/FiraCodeNerdFontMono-Light.ttf");
-  Font firacode;
-  if (!firacode.openFromFile(Fira_Path)) {
-    cerr << "Error loading firacode" << endl;
-    return -1;
-  }
-
-  // create game window
-  RenderWindow gameWindow(VideoMode({1920, 1080}), "KeyboardHero");
-  gameWindow.setVerticalSyncEnabled(true);
-
-  // create menu window
-  RenderWindow window(VideoMode({1920, 1080}), "Main Menu");
-  window.setVerticalSyncEnabled(true);
-
-  // create title text
-  Text titleText(firacode);
+// Main menu
+static void configureMenuTexts(
+    Vector2u windowSize,
+    Text &titleText,
+    Text &menuText,
+    Text &loadingText) {
+  // Configure the title.
   titleText.setString("Keyboard Hero");
   titleText.setCharacterSize(72);
   titleText.setStyle(Text::Bold);
   titleText.setFillColor(Color::White);
-  FloatRect titleTextSize = titleText.getLocalBounds();
-  titleText.setOrigin({titleTextSize.size.x / 2.f, titleTextSize.size.y / 2.f});
-  titleText.setPosition({window.getSize().x / 2.f, window.getSize().y / 4.f});
 
-  // create menu text
-  Text menuText(firacode);
+  FloatRect titleTextSize = titleText.getLocalBounds();
+  titleText.setOrigin({
+      titleTextSize.size.x / 2.f,
+      titleTextSize.size.y / 2.f});
+  titleText.setPosition({
+      windowSize.x / 2.f,
+      windowSize.y / 4.f});
+
+  // Configure the difficulty-selection menu.
   menuText.setString("1 -> Easy\n\n2 -> Medium\n\n3 -> "
                      "Hard\n\nQ -> Quit");
   menuText.setCharacterSize(36);
   menuText.setFillColor(Color::Green);
-  FloatRect menuTextSize = menuText.getLocalBounds();
-  menuText.setOrigin({menuTextSize.size.x / 2.f, menuTextSize.size.y / 2.f});
-  menuText.setPosition({window.getSize().x / 2.f, window.getSize().y / 1.5f});
 
-  // loading error text
-  Text loadingText(firacode);
-  loadingText.setString("Loading...please do not press any keys\nKeyboardHero "
-                        "may result in KeyboardFailure");
+  FloatRect menuTextSize = menuText.getLocalBounds();
+  menuText.setOrigin({
+      menuTextSize.size.x / 2.f,
+      menuTextSize.size.y / 2.f});
+  menuText.setPosition({
+      windowSize.x / 2.f,
+      windowSize.y / 1.5f});
+
+  // Configure the introductory loading message.
+  loadingText.setString(
+      "Loading...please do not press any keys\nKeyboardHero "
+      "may result in KeyboardFailure");
   loadingText.setCharacterSize(36);
   loadingText.setFillColor(Color::Yellow);
+
   FloatRect loadingTextSize = loadingText.getLocalBounds();
-  loadingText.setOrigin(
-      {loadingTextSize.size.x / 2.f, loadingTextSize.size.y / 2.f});
-  loadingText.setPosition(
-      {window.getSize().x / 2.f, window.getSize().y - 76.f});
+  loadingText.setOrigin({
+      loadingTextSize.size.x / 2.f,
+      loadingTextSize.size.y / 2.f});
+  loadingText.setPosition({
+      windowSize.x / 2.f,
+      windowSize.y - 76.f});
+}
+
+static void updateAndDrawMenuBackground(
+    RenderWindow &window,
+    const Font &font,
+    vector<BackgroundLetter> &letters,
+    Clock &spawnClock,
+    float spawnInterval,
+    float dt) {
+  // Spawn a new background letter when the interval elapses.
+  if (spawnClock.getElapsedTime().asSeconds() > spawnInterval) {
+    Text text(font);
+    char character = generateBackgroundLetter();
+
+    text.setString(character);
+    text.setCharacterSize(36);
+    text.setFillColor(Color::Green);
+
+    // Color the first and every subsequent 13th background letter red.
+    if (letters.size() % 13 == 0) {
+      text.setFillColor(Color::Red);
+    }
+
+    FloatRect textBounds = text.getLocalBounds();
+    text.setOrigin({
+        textBounds.size.x / 2.f,
+        textBounds.size.y / 2.f});
+
+    float xPosition = generateBackgroundXPosition(window.getSize().x);
+    text.setPosition({
+        xPosition,
+        -20.f});
+
+    float speed = generateBackgroundLetterSpeed();
+    letters.push_back({
+        text,
+        speed});
+
+    spawnClock.restart();
+  }
+
+  // Update and draw existing background letters.
+  for (auto &letter : letters) {
+    letter.text.move({
+        0,
+        letter.speed * dt});
+    window.draw(letter.text);
+  }
+}
+
+static void configureDifficulty(
+    Keyboard::Scancode selection,
+    float &leftSpawnInterval,
+    float &leftLetterSpeed,
+    float &rightSpawnInterval,
+    float &rightLetterSpeed) {
+  switch (selection) {
+    case Keyboard::Scancode::Num1:
+      // Easy
+      leftSpawnInterval = generateEasySpawnInterval();
+      leftLetterSpeed = 200.f;
+      rightSpawnInterval = generateEasySpawnInterval();
+      rightLetterSpeed = 200.f;
+      break;
+
+    case Keyboard::Scancode::Num2:
+      // Medium
+      leftSpawnInterval = generateMediumSpawnInterval();
+      leftLetterSpeed = 300.f;
+      rightSpawnInterval = generateMediumSpawnInterval();
+      rightLetterSpeed = 300.f;
+      break;
+
+    case Keyboard::Scancode::Num3:
+      // Hard
+      leftSpawnInterval = generateHardSpawnInterval();
+      leftLetterSpeed = 400.f;
+      rightSpawnInterval = generateHardSpawnInterval();
+      rightLetterSpeed = 400.f;
+      break;
+
+    default:
+      break;
+  }
+}
+
+static void handleMenuKeyPress(
+    Keyboard::Scancode scancode,
+    MenuInputContext &context) {
+  // Q -> quit
+  if (scancode == Keyboard::Scancode::Q) {
+    context.menuWindow.close();
+    context.gameWindow.close();
+    context.titleSong.stop();
+  }
+
+  // Select difficulty and transition into gameplay.
+  if (scancode == Keyboard::Scancode::Num1 ||
+      scancode == Keyboard::Scancode::Num2 ||
+      scancode == Keyboard::Scancode::Num3) {
+
+    context.menuWindow.close();
+    context.titleSong.stop();
+    context.transitionSound.play();
+    context.gameWindow.display();
+
+    configureDifficulty(
+        scancode,
+        context.leftSpawnInterval,
+        context.leftLetterSpeed,
+        context.rightSpawnInterval,
+        context.rightLetterSpeed);
+  }
+}
+
+// Gameplay UI and targeting
+static void configureFeedbackText(
+    Text &text,
+    const char *message,
+    const Color &color,
+    Vector2f position) {
+  text.setString(message);
+  text.setCharacterSize(24);
+  text.setFillColor(color);
+
+  FloatRect textSize = text.getLocalBounds();
+  text.setOrigin({
+      textSize.size.x / 2.f,
+      textSize.size.y / 2.f});
+
+  text.setPosition(position);
+}
+
+static void configureGameplayHudTexts(
+    Vector2u windowSize,
+    Text &instructionsText,
+    Text &leftStreakText,
+    Text &rightStreakText,
+    int leftStreak,
+    int rightStreak) {
+  // Configure gameplay instructions.
+  instructionsText.setString(
+      "TAB -> Pause\n\nESC -> Quit\n\nCTL -> Mute Song");
+  instructionsText.setCharacterSize(36);
+  instructionsText.setFillColor(Color::White);
+
+  FloatRect instructionsSize = instructionsText.getLocalBounds();
+  instructionsText.setOrigin({
+      instructionsSize.size.x / 2.f,
+      instructionsSize.size.y / 2.f});
+  instructionsText.setPosition({
+      windowSize.x / 2.f,
+      windowSize.y / 2.f});
+
+  // Configure left-hand streak counter.
+  leftStreakText.setString("Streak: " + to_string(leftStreak));
+  leftStreakText.setCharacterSize(36);
+  leftStreakText.setFillColor(Color::White);
+
+  FloatRect leftStreakSize = leftStreakText.getLocalBounds();
+  leftStreakText.setOrigin({
+      leftStreakSize.size.x / 2.f,
+      leftStreakSize.size.y / 2.f});
+  leftStreakText.setPosition({
+      windowSize.x / 4.f,
+      windowSize.y - (windowSize.y / 20.f)});
+
+  // Configure right-hand streak counter.
+  rightStreakText.setString("Streak: " + to_string(rightStreak));
+  rightStreakText.setCharacterSize(36);
+  rightStreakText.setFillColor(Color::White);
+
+  FloatRect rightStreakSize = rightStreakText.getLocalBounds();
+  rightStreakText.setOrigin({
+      rightStreakSize.size.x / 2.f,
+      rightStreakSize.size.y / 2.f});
+  rightStreakText.setPosition({
+      windowSize.x - (windowSize.x / 4.f),
+      windowSize.y - (windowSize.y / 20.f)});
+}
+
+static RectangleShape createTargetBox(Vector2u windowSize) {
+  RectangleShape targetBox(
+      {static_cast<float>(windowSize.x),
+       72.f});
+
+  targetBox.setOrigin({
+      targetBox.getSize().x / 2.f,
+      targetBox.getSize().y / 2.f});
+
+  targetBox.setPosition({
+      windowSize.x / 2.f,
+      windowSize.y - (windowSize.y / 8.5f)});
+
+  targetBox.setOutlineColor(Color::Green);
+  targetBox.setOutlineThickness(1.f);
+  targetBox.setFillColor(Color::Transparent);
+
+  return targetBox;
+}
+
+static bool isLetterInTargetZone(
+    const Text &letter,
+    const RectangleShape &targetBox) {
+  const float letterY = letter.getPosition().y;
+  const float targetY = targetBox.getPosition().y;
+
+  return letterY >= (targetY - 54.f) &&
+         letterY <= (targetY + 36.f);
+}
+
+// Falling letters
+static void spawnLeftLetter(
+    vector<LeftHandLetter> &letters,
+    const Font &font,
+    int windowWidth,
+    float speed) {
+  Text letterText(font);
+  char letter = generateLeftHandLetter();
+
+  letterText.setString(letter);
+  letterText.setCharacterSize(36);
+  letterText.setFillColor(Color::Green);
+
+  FloatRect textSize = letterText.getLocalBounds();
+  letterText.setOrigin({
+      textSize.size.x / 2.f,
+      textSize.size.y / 2.f});
+
+  float x = generateLeftHandXPosition(windowWidth);
+  letterText.setPosition({
+      x,
+      -20.f});
+
+  letters.push_back({
+      letterText,
+      speed});
+}
+
+static void spawnRightLetter(
+    vector<RightHandLetter> &letters,
+    const Font &font,
+    int windowWidth,
+    float speed) {
+  Text letterText(font);
+  char letter = generateRightHandLetter();
+
+  letterText.setString(letter);
+  letterText.setCharacterSize(36);
+  letterText.setFillColor(Color::Green);
+
+  FloatRect textSize = letterText.getLocalBounds();
+  letterText.setOrigin({
+      textSize.size.x / 2.f,
+      textSize.size.y / 2.f});
+
+  float x = generateRightHandXPosition(windowWidth);
+  letterText.setPosition({
+      x,
+      -20.f});
+
+  letters.push_back({
+      letterText,
+      speed});
+}
+
+static void updateAndDrawGameplayLetters(
+    RenderWindow &window,
+    vector<LeftHandLetter> &leftLetters,
+    vector<RightHandLetter> &rightLetters,
+    float dt) {
+  // Move and draw left-hand letters.
+  for (auto &letter : leftLetters) {
+    letter.text.move({
+        0,
+        letter.speed * dt});
+    window.draw(letter.text);
+  }
+
+  // Move and draw right-hand letters.
+  for (auto &letter : rightLetters) {
+    letter.text.move({
+        0,
+        letter.speed * dt});
+    window.draw(letter.text);
+  }
+}
+
+// Scoring and feedback
+static void setFeedbackTextSize(
+    Text &messageText,
+    int streak) {
+  if (streak <= 3) {
+    messageText.setCharacterSize(24);
+  } else if (streak <= 6) {
+    messageText.setCharacterSize(30);
+  } else {
+    messageText.setCharacterSize(36);
+  }
+}
+
+static void recordMiss(
+    int &streak,
+    int &missStreak,
+    Text &missText,
+    bool &showMissMessage,
+    Clock &messageClock,
+    Sound &missSound) {
+  ++missStreak;
+  streak = 0;
+
+  setFeedbackTextSize(
+      missText,
+      missStreak);
+
+  messageClock.restart();
+  showMissMessage = true;
+  missSound.play();
+}
+
+static void recordHit(
+    int &streak,
+    int &missStreak,
+    Text &correctText,
+    bool &showCorrectMessage,
+    Clock &messageClock,
+    Sound &correctSound) {
+  ++streak;
+  missStreak = 0;
+
+  setFeedbackTextSize(
+      correctText,
+      streak);
+
+  showCorrectMessage = true;
+  messageClock.restart();
+  correctSound.play();
+}
+
+static void drawTimedFeedback(
+    RenderWindow &window,
+    Text &message,
+    bool &showMessage,
+    const Clock &messageClock) {
+  if (showMessage) {
+    window.draw(message);
+
+    if (messageClock.getElapsedTime().asSeconds() >= 0.25f) {
+      showMessage = false;
+    }
+  }
+}
+
+// Gameplay input
+static void handleGameplayControls(
+    Keyboard::Scancode scancode,
+    RenderWindow &gameWindow,
+    Sound &gameSong,
+    bool &isPaused,
+    bool &isMuted) {
+  // Escape -> quit
+  if (scancode == Keyboard::Scancode::Escape) {
+    gameWindow.close();
+    gameSong.stop();
+  }
+
+  // Tab -> pause or resume
+  if (scancode == Keyboard::Scancode::Tab) {
+    isPaused = !isPaused;
+
+    if (gameSong.getStatus() == SoundSource::Status::Playing) {
+      gameSong.pause();
+    } else {
+      gameSong.play();
+    }
+  }
+
+  // Ctrl -> mute or unmute gameplay music
+  if (scancode == Keyboard::Scancode::LControl ||
+      scancode == Keyboard::Scancode::RControl) {
+    isMuted = !isMuted;
+
+    if (isMuted) {
+      gameSong.setVolume(0);
+    } else {
+      gameSong.setVolume(60);
+    }
+  }
+}
+
+static TypingHand classifyTypingKey(Keyboard::Scancode scancode) {
+  switch (scancode) {
+    case Keyboard::Scancode::Q:
+    case Keyboard::Scancode::W:
+    case Keyboard::Scancode::E:
+    case Keyboard::Scancode::R:
+    case Keyboard::Scancode::T:
+    case Keyboard::Scancode::A:
+    case Keyboard::Scancode::S:
+    case Keyboard::Scancode::D:
+    case Keyboard::Scancode::F:
+    case Keyboard::Scancode::G:
+    case Keyboard::Scancode::Z:
+    case Keyboard::Scancode::X:
+    case Keyboard::Scancode::C:
+    case Keyboard::Scancode::V:
+      return TypingHand::Left;
+
+    case Keyboard::Scancode::Y:
+    case Keyboard::Scancode::U:
+    case Keyboard::Scancode::I:
+    case Keyboard::Scancode::O:
+    case Keyboard::Scancode::P:
+    case Keyboard::Scancode::H:
+    case Keyboard::Scancode::J:
+    case Keyboard::Scancode::K:
+    case Keyboard::Scancode::L:
+    case Keyboard::Scancode::N:
+    case Keyboard::Scancode::M:
+    case Keyboard::Scancode::B:
+      return TypingHand::Right;
+
+    default:
+      return TypingHand::None;
+  }
+}
+
+static void handleLeftTypingKey(
+    Keyboard::Scancode scancode,
+    bool inTarget,
+    vector<LeftHandLetter> &letters,
+    HandFeedbackState &feedback,
+    Sound &missSound,
+    Sound &correctSound) {
+  // A keypress outside the target zone counts as a miss.
+  if (!inTarget) {
+    // Remove the first letter if one is available.
+    if (!letters.empty()) {
+      letters.erase(letters.begin());
+    }
+
+    recordMiss(
+        feedback.streak,
+        feedback.missStreak,
+        feedback.missText,
+        feedback.showMissMessage,
+        feedback.messageClock,
+        missSound);
+  }
+
+  // A matching keypress inside the target zone is a hit.
+  if (inTarget &&
+      !letters.empty() &&
+      getDescription(scancode) ==
+          letters.front().text.getString()) {
+    letters.erase(letters.begin());
+
+    recordHit(
+        feedback.streak,
+        feedback.missStreak,
+        feedback.correctText,
+        feedback.showCorrectMessage,
+        feedback.messageClock,
+        correctSound);
+  }
+}
+
+static void handleRightTypingKey(
+    Keyboard::Scancode scancode,
+    bool inTarget,
+    vector<RightHandLetter> &letters,
+    HandFeedbackState &feedback,
+    Sound &missSound,
+    Sound &correctSound) {
+  // A keypress outside the target zone counts as a miss.
+  if (!inTarget) {
+    // Remove the first letter if one is available.
+    if (!letters.empty()) {
+      letters.erase(letters.begin());
+    }
+
+    recordMiss(
+        feedback.streak,
+        feedback.missStreak,
+        feedback.missText,
+        feedback.showMissMessage,
+        feedback.messageClock,
+        missSound);
+  }
+
+  // A matching keypress inside the target zone is a hit.
+  if (inTarget &&
+      !letters.empty() &&
+      getDescription(scancode) ==
+          letters.front().text.getString()) {
+    letters.erase(letters.begin());
+
+    recordHit(
+        feedback.streak,
+        feedback.missStreak,
+        feedback.correctText,
+        feedback.showCorrectMessage,
+        feedback.messageClock,
+        correctSound);
+  }
+}
+
+// Off-screen miss handling
+static void handleOffscreenMisses(
+    float windowHeight,
+    vector<LeftHandLetter> &leftLetters,
+    vector<RightHandLetter> &rightLetters,
+    HandFeedbackState &leftFeedback,
+    HandFeedbackState &rightFeedback,
+    Sound &missSound) {
+  // Remove an off-screen left-hand letter and record a miss.
+  if (!leftLetters.empty() &&
+      leftLetters.front().text.getPosition().y >=
+          windowHeight) {
+    leftLetters.erase(leftLetters.begin());
+
+    recordMiss(
+        leftFeedback.streak,
+        leftFeedback.missStreak,
+        leftFeedback.missText,
+        leftFeedback.showMissMessage,
+        leftFeedback.messageClock,
+        missSound);
+  }
+
+  // Remove an off-screen right-hand letter and record a miss.
+  if (!rightLetters.empty() &&
+      rightLetters.front().text.getPosition().y >=
+          windowHeight) {
+    rightLetters.erase(rightLetters.begin());
+
+    recordMiss(
+        rightFeedback.streak,
+        rightFeedback.missStreak,
+        rightFeedback.missText,
+        rightFeedback.showMissMessage,
+        rightFeedback.messageClock,
+        missSound);
+  }
+}
+
+// Application entry point
+int main() {
+  // Load the shared font.
+  auto fontPath = assetPath("Fonts/FiraCodeNerdFontMono-Light.ttf");
+  Font firaCodeFont;
+  if (!firaCodeFont.openFromFile(fontPath)) {
+    cerr << "Error loading firaCodeFont" << endl;
+    return -1;
+  }
+
+  // Create the gameplay window.
+  RenderWindow gameWindow(
+      VideoMode({
+          1920,
+          1080}),
+      "KeyboardHero");
+  gameWindow.setVerticalSyncEnabled(true);
+
+  // Create the main-menu window.
+  RenderWindow menuWindow(
+      VideoMode({
+          1920,
+          1080}),
+      "Main Menu");
+  menuWindow.setVerticalSyncEnabled(true);
+
+  // Create and configure the main-menu text.
+  Text titleText(firaCodeFont);
+  Text menuText(firaCodeFont);
+  Text loadingText(firaCodeFont);
+
+  configureMenuTexts(
+      menuWindow.getSize(),
+      titleText,
+      menuText,
+      loadingText);
+
   bool showLoadingMessage = true;
 
-  // create game menu text
-  Text gamemenuText(firacode);
-  gamemenuText.setString("TAB -> Pause\n\nESC -> Quit\n\nCTL -> Mute Song");
-  gamemenuText.setCharacterSize(36);
-  gamemenuText.setFillColor(Color::White);
-  FloatRect gamemenuTextSize = gamemenuText.getLocalBounds();
-  gamemenuText.setOrigin(
-      {gamemenuTextSize.size.x / 2.f, gamemenuTextSize.size.y / 2.f});
-  gamemenuText.setPosition(
-      {gameWindow.getSize().x / 2.f, gameWindow.getSize().y / 2.f});
+  // Create the gameplay instructions.
+  Text gameInstructionsText(firaCodeFont);
 
-  // create left "miss" text
-  Text missLeftText(firacode);
-  missLeftText.setString("Miss");
-  missLeftText.setCharacterSize(24);
-  missLeftText.setFillColor(Color::Red);
-  FloatRect missLeftTextSize = missLeftText.getLocalBounds();
-  missLeftText.setOrigin(
-      {missLeftTextSize.size.x / 2.f, missLeftTextSize.size.y / 2.f});
-  missLeftText.setPosition(
-      {gameWindow.getSize().x / 9.5f, gameWindow.getSize().y / 2.f});
-  bool showLMissMessage = false;
+  // Gameplay feedback positions.
+  const Vector2u gameSize = gameWindow.getSize();
 
-  // create right "miss" text
-  Text missRightText(firacode);
-  missRightText.setString("Miss");
-  missRightText.setCharacterSize(24);
-  missRightText.setFillColor(Color::Red);
-  FloatRect missRightTextSize = missRightText.getLocalBounds();
-  missRightText.setOrigin(
-      {missRightTextSize.size.x / 2.f, missRightTextSize.size.y / 2.f});
-  missRightText.setPosition(
-      {gameWindow.getSize().x - (gameWindow.getSize().x / 10.f),
-       gameWindow.getSize().y / 2.f});
-  bool showRMissMessage = false;
+  const Vector2f leftFeedbackPosition{
+      gameSize.x / 9.5f,
+      gameSize.y / 2.f};
 
-  // create left "correct!" text
-  Text correctLeftText(firacode);
-  correctLeftText.setString("Correct!");
-  correctLeftText.setCharacterSize(24);
-  correctLeftText.setFillColor(Color::Cyan);
-  FloatRect correctLeftTextSize = correctLeftText.getLocalBounds();
-  correctLeftText.setOrigin(
-      {correctLeftTextSize.size.x / 2.f, correctLeftTextSize.size.y / 2.f});
-  correctLeftText.setPosition(
-      {gameWindow.getSize().x / 9.5f, gameWindow.getSize().y / 2.f});
-  bool showLCorrectMessage = false;
+  const Vector2f rightFeedbackPosition{
+      gameSize.x - (gameSize.x / 10.f),
+      gameSize.y / 2.f};
 
-  // create right "correct!" text
-  Text correctRightText(firacode);
-  correctRightText.setString("Correct!");
-  correctRightText.setCharacterSize(24);
-  correctRightText.setFillColor(Color::Cyan);
-  FloatRect correctRightTextSize = correctRightText.getLocalBounds();
-  correctRightText.setOrigin(
-      {correctRightTextSize.size.x / 2.f, correctRightTextSize.size.y / 2.f});
-  correctRightText.setPosition(
-      {gameWindow.getSize().x - (gameWindow.getSize().x / 10.f),
-       gameWindow.getSize().y / 2.f});
-  bool showRCorrectMessage = false;
+  // Left-hand miss feedback.
+  Text missLeftText(firaCodeFont);
+  configureFeedbackText(
+      missLeftText,
+      "Miss",
+      Color::Red,
+      leftFeedbackPosition);
+  bool showLeftMissMessage = false;
 
-  // counters
+  // Right-hand miss feedback.
+  Text missRightText(firaCodeFont);
+  configureFeedbackText(
+      missRightText,
+      "Miss",
+      Color::Red,
+      rightFeedbackPosition);
+  bool showRightMissMessage = false;
+
+  // Left-hand correct-hit feedback.
+  Text correctLeftText(firaCodeFont);
+  configureFeedbackText(
+      correctLeftText,
+      "Correct!",
+      Color::Cyan,
+      leftFeedbackPosition);
+  bool showLeftCorrectMessage = false;
+
+  // Right-hand correct-hit feedback.
+  Text correctRightText(firaCodeFont);
+  configureFeedbackText(
+      correctRightText,
+      "Correct!",
+      Color::Cyan,
+      rightFeedbackPosition);
+  bool showRightCorrectMessage = false;
+
+  // Initialize streak counters.
   int leftStreak = 0;
   int rightStreak = 0;
   int leftMissStreak = 0;
   int rightMissStreak = 0;
 
-  // create left score streak text
-  Text leftStreakText(firacode);
-  leftStreakText.setString("Streak: " + to_string(leftStreak));
-  leftStreakText.setCharacterSize(36);
-  leftStreakText.setFillColor(Color::White);
-  FloatRect leftStreakTextSize = leftStreakText.getLocalBounds();
-  leftStreakText.setOrigin(
-      {leftStreakTextSize.size.x / 2.f, leftStreakTextSize.size.y / 2.f});
-  leftStreakText.setPosition(
-      {gameWindow.getSize().x / 4.f,
-       gameWindow.getSize().y - (gameWindow.getSize().y / 20.f)});
+  // Create gameplay HUD text.
+  Text leftStreakText(firaCodeFont);
+  Text rightStreakText(firaCodeFont);
 
-  // create right score streak text
-  Text rightStreakText(firacode);
-  rightStreakText.setString("Streak: " + to_string(rightStreak));
-  rightStreakText.setCharacterSize(36);
-  rightStreakText.setFillColor(Color::White);
-  FloatRect rightStreakTextSize = rightStreakText.getLocalBounds();
-  rightStreakText.setOrigin(
-      {rightStreakTextSize.size.x / 2.f, rightStreakTextSize.size.y / 2.f});
-  rightStreakText.setPosition(
-      {gameWindow.getSize().x - (gameWindow.getSize().x / 4.f),
-       gameWindow.getSize().y - (gameWindow.getSize().y / 20.f)});
+  configureGameplayHudTexts(
+      gameWindow.getSize(),
+      gameInstructionsText,
+      leftStreakText,
+      rightStreakText,
+      leftStreak,
+      rightStreak);
 
-  // create target bar for key press
-  RectangleShape targetBox({static_cast<float>(gameWindow.getSize().x), 72.f});
-  targetBox.setOrigin(
-      {targetBox.getSize().x / 2.f, targetBox.getSize().y / 2.f});
-  targetBox.setPosition(
-      {gameWindow.getSize().x / 2.f,
-       gameWindow.getSize().y - (gameWindow.getSize().y / 8.5f)});
-  targetBox.setOutlineColor(Color::Green);
-  targetBox.setOutlineThickness(1.f);
-  targetBox.setFillColor(Color::Transparent);
-  bool inTargetL = false;
-  bool inTargetR = false;
+  // Create the gameplay target bar.
+  RectangleShape targetBox = createTargetBox(gameWindow.getSize());
 
-  // sound buffers
+  bool leftLetterIsInTargetZone = false;
+  bool rightLetterIsInTargetZone = false;
+
+  // Load audio resources.
   SoundBuffer titleSongBuffer;
   SoundBuffer titleTransSoundBuffer;
   SoundBuffer gameSongBuffer;
   SoundBuffer correctSoundBuffer;
   SoundBuffer missSoundBuffer;
 
-  // load to buffers
-  if (!titleSongBuffer.loadFromFile(
-          assetPath("Audio/StartMenu-Song.wav").string())) {
-    cerr << "Failed to load title song" << endl;
-  }
-  if (!titleTransSoundBuffer.loadFromFile(
-          assetPath("Audio/StartMenuTransition-Sound.wav").string())) {
-    cerr << "Failed to load title transition sound" << endl;
-  }
-  if (!gameSongBuffer.loadFromFile(assetPath("Audio/gameSong1.wav").string())) {
-    cerr << "Failed to load game song" << endl;
-  }
-  if (!correctSoundBuffer.loadFromFile(
-          assetPath("Audio/correctHit.wav").string())) {
-    cerr << "Failed to load correct hit sound" << endl;
-  }
-  if (!missSoundBuffer.loadFromFile(
-          assetPath("Audio/missSound.wav").string())) {
-    cerr << "Failed to load miss sound" << endl;
-  }
+  loadSoundBuffers(
+      titleSongBuffer,
+      titleTransSoundBuffer,
+      gameSongBuffer,
+      correctSoundBuffer,
+      missSoundBuffer);
 
-  // sound players
+  // Create sound players after their buffers.
   Sound titleSong(titleSongBuffer);
   Sound titleTransSound(titleTransSoundBuffer);
   Sound gameSong(gameSongBuffer);
   Sound correctSound(correctSoundBuffer);
   Sound missSound(missSoundBuffer);
 
-  // initialize clocks
+  // Initialize clocks.
   Clock gameClock;
-  Clock spawnClock;
+  Clock backgroundSpawnClock;
   Clock leftSpawnClock;
   Clock rightSpawnClock;
   Clock leftMessageClock;
   Clock rightMessageClock;
   Clock loadingClock;
-  float bgSpawnInterval = 0.2f;
+  float backgroundSpawnInterval = 0.2f;
 
-  // left and right letter attribute declarations
+  HandFeedbackState leftFeedback{
+      leftStreak,
+      leftMissStreak,
+      missLeftText,
+      correctLeftText,
+      showLeftMissMessage,
+      showLeftCorrectMessage,
+      leftMessageClock};
+  HandFeedbackState rightFeedback{
+      rightStreak,
+      rightMissStreak,
+      missRightText,
+      correctRightText,
+      showRightMissMessage,
+      showRightCorrectMessage,
+      rightMessageClock};
+
+  // Difficulty-dependent letter settings.
   float leftLetterSpeed;
   float rightLetterSpeed;
   float leftSpawnInterval;
   float rightSpawnInterval;
 
-  // start title song
+  MenuInputContext menuInput{
+      menuWindow,
+      gameWindow,
+      titleSong,
+      titleTransSound,
+      leftSpawnInterval,
+      leftLetterSpeed,
+      rightSpawnInterval,
+      rightLetterSpeed};
+
+  // Start the title music.
   titleSong.setLooping(true);
   titleSong.setVolume(50);
   titleSong.play();
-  bool isLooping = titleSong.isLooping();
 
-  // start menu window loop //
-  while (window.isOpen()) {
-
-    // start delta time
+  // Main-menu loop.
+  while (menuWindow.isOpen()) {
     float dt = gameClock.getElapsedTime().asSeconds();
     if (dt >= 1.f / 60.f) {
-
       gameClock.restart();
 
-      // start event handling
-      while (const auto event = window.pollEvent()) {
+      while (const auto event = menuWindow.pollEvent()) {
         if (event->is<Event::Closed>()) {
-          window.close();
+          menuWindow.close();
           titleSong.stop();
         }
 
-        // keyboard input - key pressed //
         if (auto *key = event->getIf<sf::Event::KeyPressed>()) {
-
-          // Q -> quit
-          if (key->scancode == Keyboard::Scancode::Q) {
-            window.close();
-            gameWindow.close();
-            titleSong.stop();
-          }
-          // 1 -> close menu window, begin game window in easy
-          if (key->scancode == Keyboard::Scancode::Num1) {
-            window.close();
-            titleSong.stop();
-            titleTransSound.play();
-            gameWindow.display();
-            leftSpawnInterval = random_spawn_float_e();
-            leftLetterSpeed = 200.f;
-            rightSpawnInterval = random_spawn_float_e();
-            rightLetterSpeed = 200.f;
-          }
-
-          // 2 -> close menu window, begin game window in medium
-          if (key->scancode == Keyboard::Scancode::Num2) {
-            window.close();
-            titleSong.stop();
-            titleTransSound.play();
-            gameWindow.display();
-            leftSpawnInterval = random_spawn_float_m();
-            leftLetterSpeed = 300.f;
-            rightSpawnInterval = random_spawn_float_m();
-            rightLetterSpeed = 300.f;
-          }
-
-          // 3 -> close menu window, begin game window in hard
-          if (key->scancode == Keyboard::Scancode::Num3) {
-            window.close();
-            titleSong.stop();
-            titleTransSound.play();
-            gameWindow.display();
-            leftSpawnInterval = random_spawn_float_h();
-            leftLetterSpeed = 400.f;
-            rightSpawnInterval = random_spawn_float_h();
-            rightLetterSpeed = 400.f;
-          }
-        } // END key pressed handling
-      } // END menu loop event handling
-
-      // start drawing - menu window
-      window.clear();
-
-      // draw menu titling text
-      window.draw(titleText);
-      window.draw(menuText);
-
-      // create matrix-style background - menu
-      if (spawnClock.getElapsedTime().asSeconds() > bgSpawnInterval) {
-        Text randomLetterText(firacode);
-        char random_letter = random_letter_generator();
-        randomLetterText.setString(random_letter);
-        randomLetterText.setCharacterSize(36);
-        randomLetterText.setFillColor(Color::Green);
-        // every 13th letter drops red
-        if (randomLetters.size() % 13 == 0) {
-          randomLetterText.setFillColor(Color::Red);
+          handleMenuKeyPress(
+              key->scancode,
+              menuInput);
         }
-        FloatRect randomLetterTextSize = randomLetterText.getLocalBounds();
-        randomLetterText.setOrigin({randomLetterTextSize.size.x / 2.f,
-                                    randomLetterTextSize.size.y / 2.f});
-        float randomXvalue = random_X_value(window.getSize().x);
-        randomLetterText.setPosition({randomXvalue, -20.f});
-
-        // add letters to vector with random speed
-        float randomSpeed = random_speed();
-        randomLetters.push_back({randomLetterText, randomSpeed});
-
-        spawnClock.restart();
       }
 
-      // update all falling letters
-      for (auto &letter : randomLetters) {
-        letter.randomLetterText.move({0, letter.randomLetterSpeed * dt});
-        window.draw(letter.randomLetterText);
-      }
+      menuWindow.clear();
 
-      // show loading message
+      menuWindow.draw(titleText);
+      menuWindow.draw(menuText);
+
+      // Update and draw the animated menu background.
+      updateAndDrawMenuBackground(
+          menuWindow,
+          firaCodeFont,
+          menuBackgroundLetters,
+          backgroundSpawnClock,
+          backgroundSpawnInterval,
+          dt);
+
       if (showLoadingMessage) {
-        window.draw(loadingText);
+        menuWindow.draw(loadingText);
         if (loadingClock.getElapsedTime().asSeconds() > 3.f) {
           showLoadingMessage = false;
           loadingClock.stop();
         }
       }
 
-      window.display();
-    } // END delta time
-  } // END main menu window loop
+      menuWindow.display();
+    }
+  }
 
-  // start game song
+  // Start gameplay music.
   gameSong.setLooping(true);
   gameSong.setVolume(60);
   gameSong.play();
   bool isMuted = false;
 
-  // start game window (KeyboardHero)loop //
+  // Gameplay loop.
   while (gameWindow.isOpen()) {
-
-    // start delta time
     float dt = gameClock.getElapsedTime().asSeconds();
     if (dt >= 1.f / 60.f) {
-
       gameClock.restart();
 
-      // start event handling
       while (const auto event = gameWindow.pollEvent()) {
         if (event->is<Event::Closed>()) {
           gameWindow.close();
           gameSong.stop();
         }
 
-        // keyboard input - key pressed //
         if (auto *key = event->getIf<sf::Event::KeyPressed>()) {
+          handleGameplayControls(
+              key->scancode,
+              gameWindow,
+              gameSong,
+              isPaused,
+              isMuted);
 
-          // Escape -> quit
-          if (key->scancode == Keyboard::Scancode::Escape) {
-            gameWindow.close();
-            gameSong.stop();
+          const TypingHand typingHand = classifyTypingKey(key->scancode);
+
+          if (typingHand == TypingHand::Left) {
+            handleLeftTypingKey(
+                key->scancode,
+                leftLetterIsInTargetZone,
+                leftFallingLetters,
+                leftFeedback,
+                missSound,
+                correctSound);
           }
 
-          // Tab -> pause window
-          if (key->scancode == Keyboard::Scancode::Tab) {
-            isPaused = !isPaused;
-            if (gameSong.getStatus() == SoundSource::Status::Playing) {
-              gameSong.pause();
-            } else {
-              gameSong.play();
-            }
+          if (typingHand == TypingHand::Right) {
+            handleRightTypingKey(
+                key->scancode,
+                rightLetterIsInTargetZone,
+                rightFallingLetters,
+                rightFeedback,
+                missSound,
+                correctSound);
           }
+        }
+      }
 
-          // CTRL -> mute game song
-          if (key->scancode == Keyboard::Scancode::LControl ||
-              key->scancode == Keyboard::Scancode::RControl) {
-            isMuted = !isMuted;
-            if (isMuted) {
-              gameSong.setVolume(0);
-            } else {
-              gameSong.setVolume(60);
-            }
-          }
-
-          // left hand switch
-          switch (key->scancode) {
-          case Keyboard::Scancode::Q:
-          case Keyboard::Scancode::W:
-          case Keyboard::Scancode::E:
-          case Keyboard::Scancode::R:
-          case Keyboard::Scancode::T:
-          case Keyboard::Scancode::A:
-          case Keyboard::Scancode::S:
-          case Keyboard::Scancode::D:
-          case Keyboard::Scancode::F:
-          case Keyboard::Scancode::G:
-          case Keyboard::Scancode::Z:
-          case Keyboard::Scancode::X:
-          case Keyboard::Scancode::C:
-          case Keyboard::Scancode::V:
-            if (inTargetL == false) {
-              // if theres no letters in queue to delete (spamming keys)
-              if (randomLeftLetters.size() < 1) {
-                showLMissMessage = true;
-              } else {
-                showLMissMessage = true;
-                randomLeftLetters.erase(randomLeftLetters.begin());
-              }
-              // increase/decrease counters
-              leftMissStreak += 1;
-              leftStreak = 0;
-              // change size of message
-              if (leftMissStreak <= 3) {
-                missLeftText.setCharacterSize(24);
-              }
-              if (leftMissStreak > 3 && leftMissStreak <= 6) {
-                missLeftText.setCharacterSize(30);
-              }
-              if (leftMissStreak > 6) {
-                missLeftText.setCharacterSize(36);
-              }
-              leftMessageClock.restart();
-              // play miss sound
-              missSound.play();
-            }
-            if (inTargetL &&
-                !randomLeftLetters.empty() &&
-                getDescription(key->scancode) ==
-                    randomLeftLetters[0].randomLeftLetterText.getString()) {
-              // increase/decrease counters
-              leftStreak += 1;
-              leftMissStreak = 0;
-              // change size of message
-              if (leftStreak <= 3) {
-                correctLeftText.setCharacterSize(24);
-              }
-              if (leftStreak > 3 && leftStreak <= 6) {
-                correctLeftText.setCharacterSize(30);
-              }
-              if (leftStreak > 6) {
-                correctLeftText.setCharacterSize(36);
-              }
-              showLCorrectMessage = true;
-              randomLeftLetters.erase(randomLeftLetters.begin());
-              leftMessageClock.restart();
-              // play correct sound
-              correctSound.play();
-            }
-            break;
-          default:
-            break;
-          }
-
-          // right hand switch
-          switch (key->scancode) {
-          case Keyboard::Scancode::Y:
-          case Keyboard::Scancode::U:
-          case Keyboard::Scancode::I:
-          case Keyboard::Scancode::O:
-          case Keyboard::Scancode::P:
-          case Keyboard::Scancode::H:
-          case Keyboard::Scancode::J:
-          case Keyboard::Scancode::K:
-          case Keyboard::Scancode::L:
-          case Keyboard::Scancode::N:
-          case Keyboard::Scancode::M:
-          case Keyboard::Scancode::B:
-            if (inTargetR == false) {
-              // if theres no letters in queue to delete (spamming keys)
-              if (randomRightLetters.size() < 1) {
-                showRMissMessage = true;
-              } else {
-                showRMissMessage = true;
-                randomRightLetters.erase(randomRightLetters.begin());
-              }
-              // increase/decrease counters
-              rightMissStreak += 1;
-              rightStreak = 0;
-              // change size of message
-              if (rightMissStreak <= 3) {
-                missRightText.setCharacterSize(24);
-              }
-              if (rightMissStreak > 3 && rightMissStreak <= 6) {
-                missRightText.setCharacterSize(30);
-              }
-              if (rightMissStreak > 6) {
-                missRightText.setCharacterSize(36);
-              }
-              rightMessageClock.restart();
-              // play miss sound
-              missSound.play();
-            }
-            if (inTargetR &&
-                !randomRightLetters.empty() &&
-                getDescription(key->scancode) ==
-                    randomRightLetters[0].randomRightLetterText.getString()) {
-              showRCorrectMessage = true;
-              randomRightLetters.erase(randomRightLetters.begin());
-              // increase/decrease counters
-              rightStreak += 1;
-              rightMissStreak = 0;
-              // change size of message
-              if (rightStreak <= 3) {
-                correctRightText.setCharacterSize(24);
-              }
-              if (rightStreak > 3 && rightStreak <= 6) {
-                correctRightText.setCharacterSize(30);
-              }
-              if (rightStreak > 6) {
-                correctRightText.setCharacterSize(36);
-              }
-              rightMessageClock.restart();
-              // play correct sound
-              correctSound.play();
-            }
-            break;
-          default:
-            break;
-          }
-
-        } // END key pressed handling
-
-      } // END game window loop event handling
-
-      // start drawing - game window
       gameWindow.clear();
 
       if (!isPaused) {
-
         gameWindow.draw(targetBox);
 
-        // make left hand letters fall
+        // Spawn left-hand letters at the configured interval.
         if (leftSpawnClock.getElapsedTime().asSeconds() > leftSpawnInterval) {
-
-          // left hand letters
-          Text leftLetterText(firacode);
-          char randomLeftLetter = random_left_letter_generator();
-          leftLetterText.setString(randomLeftLetter);
-          leftLetterText.setCharacterSize(36);
-          leftLetterText.setFillColor(Color::Green);
-          FloatRect leftLetterTextSize = leftLetterText.getLocalBounds();
-          leftLetterText.setOrigin({leftLetterTextSize.size.x / 2.f,
-                                    leftLetterTextSize.size.y / 2.f});
-          float randomLeftXvalue = random_left_X_value(gameWindow.getSize().x);
-          leftLetterText.setPosition({randomLeftXvalue, -20.f});
-
-          // add left letters to vector
-          randomLeftLetters.push_back({leftLetterText, leftLetterSpeed});
+          spawnLeftLetter(
+              leftFallingLetters,
+              firaCodeFont,
+              gameWindow.getSize().x,
+              leftLetterSpeed);
 
           leftSpawnClock.restart();
         }
 
-        // make right hand letters fall
+        // Spawn right-hand letters at the configured interval.
         if (rightSpawnClock.getElapsedTime().asSeconds() > rightSpawnInterval) {
-
-          // right hand letters
-          Text rightLetterText(firacode);
-          char randomRightLetter = random_right_letter_generator();
-          rightLetterText.setString(randomRightLetter);
-          rightLetterText.setCharacterSize(36);
-          rightLetterText.setFillColor(Color::Green);
-          FloatRect rightLetterTextSize = rightLetterText.getLocalBounds();
-          rightLetterText.setOrigin({rightLetterTextSize.size.x / 2.f,
-                                     rightLetterTextSize.size.y / 2.f});
-          float randomRightXvalue =
-              random_right_X_value(gameWindow.getSize().x);
-          rightLetterText.setPosition({randomRightXvalue, -20.f});
-
-          // add right letters to vector
-          randomRightLetters.push_back({rightLetterText, rightLetterSpeed});
+          spawnRightLetter(
+              rightFallingLetters,
+              firaCodeFont,
+              gameWindow.getSize().x,
+              rightLetterSpeed);
 
           rightSpawnClock.restart();
         }
 
-        // update all falling letters
-        // for each letter object in letters vector
-        for (auto &leftLetter : randomLeftLetters) {
-          leftLetter.randomLeftLetterText.move({0, leftLetter.speed * dt});
-          gameWindow.draw(leftLetter.randomLeftLetterText);
-        }
-        for (auto &rightLetter : randomRightLetters) {
-          rightLetter.randomRightLetterText.move({0, rightLetter.speed * dt});
-          gameWindow.draw(rightLetter.randomRightLetterText);
-        }
+        // Update and draw falling gameplay letters.
+        updateAndDrawGameplayLetters(
+            gameWindow,
+            leftFallingLetters,
+            rightFallingLetters,
+            dt);
 
-        // delete struct at index 0 when it goes out of bounds
-        // left
-        if (!randomLeftLetters.empty() &&
-            randomLeftLetters[0].randomLeftLetterText.getPosition().y >=
-                gameWindow.getSize().y) {
-          randomLeftLetters.erase(randomLeftLetters.begin());
-          // increase/decrease counters
-          leftMissStreak += 1;
-          leftStreak = 0;
-          // change size of message
-          if (leftMissStreak <= 3) {
-            missLeftText.setCharacterSize(24);
-          }
-          if (leftMissStreak > 3 && leftMissStreak <= 6) {
-            missLeftText.setCharacterSize(30);
-          }
-          if (leftMissStreak > 6) {
-            missLeftText.setCharacterSize(36);
-          }
-          leftMessageClock.restart();
-          showLMissMessage = true;
-          // play miss sound
-          missSound.play();
-        }
-        // right
-        if (!randomRightLetters.empty() &&
-            randomRightLetters[0].randomRightLetterText.getPosition().y >=
-                gameWindow.getSize().y) {
-          randomRightLetters.erase(randomRightLetters.begin());
-          // increase/decrease counters
-          rightMissStreak += 1;
-          rightStreak = 0;
-          // change size of message
-          if (rightMissStreak <= 3) {
-            missRightText.setCharacterSize(24);
-          }
-          if (rightMissStreak > 3 && rightMissStreak <= 6) {
-            missRightText.setCharacterSize(30);
-          }
-          if (rightMissStreak > 6) {
-            missRightText.setCharacterSize(36);
-          }
-          rightMessageClock.restart();
-          showRMissMessage = true;
-          // play miss sound
-          missSound.play();
-        }
+        // Remove off-screen letters and record misses.
+        handleOffscreenMisses(
+            static_cast<float>(gameWindow.getSize().y),
+            leftFallingLetters,
+            rightFallingLetters,
+            leftFeedback,
+            rightFeedback,
+            missSound);
 
-        // left letter collisions with target box
-        if (randomLeftLetters.empty()) {
-          inTargetL = false;
-        } else {
-          const float letterY =
-              randomLeftLetters.front().randomLeftLetterText.getPosition().y;
+        // Check whether the first left-hand letter is in the target zone.
+        leftLetterIsInTargetZone =
+            !leftFallingLetters.empty() &&
+            isLetterInTargetZone(
+                leftFallingLetters.front().text,
+                targetBox);
 
-          inTargetL =
-              letterY >= (targetBox.getPosition().y - 54.f) &&
-              letterY <= (targetBox.getPosition().y + 36.f);
-        }
+        // Check whether the first right-hand letter is in the target zone.
+        rightLetterIsInTargetZone =
+            !rightFallingLetters.empty() &&
+            isLetterInTargetZone(
+                rightFallingLetters.front().text,
+                targetBox);
 
-        // right letter collisions with target box
-        if (randomRightLetters.empty()) {
-          inTargetR = false;
-        } else {
-          const float letterY =
-              randomRightLetters.front().randomRightLetterText.getPosition().y;
+        // Draw active hit/miss feedback for both hands.
+        drawTimedFeedback(
+            gameWindow,
+            missLeftText,
+            showLeftMissMessage,
+            leftMessageClock);
 
-          inTargetR =
-              letterY >= (targetBox.getPosition().y - 54.f) &&
-              letterY <= (targetBox.getPosition().y + 36.f);
-        }
+        drawTimedFeedback(
+            gameWindow,
+            missRightText,
+            showRightMissMessage,
+            rightMessageClock);
 
-        // show left "miss" message
-        if (showLMissMessage) {
-          gameWindow.draw(missLeftText);
-          if (leftMessageClock.getElapsedTime().asSeconds() >= 0.25f) {
-            showLMissMessage = false;
-          }
-        }
+        drawTimedFeedback(
+            gameWindow,
+            correctLeftText,
+            showLeftCorrectMessage,
+            leftMessageClock);
 
-        // show right "miss" message
-        if (showRMissMessage) {
-          gameWindow.draw(missRightText);
-          if (rightMessageClock.getElapsedTime().asSeconds() >= 0.25f) {
-            showRMissMessage = false;
-          }
-        }
-
-        // show left "correct!" message
-        if (showLCorrectMessage) {
-          gameWindow.draw(correctLeftText);
-          if (leftMessageClock.getElapsedTime().asSeconds() >= 0.25f) {
-            showLCorrectMessage = false;
-          }
-        }
-
-        // show right "correct!" message
-        if (showRCorrectMessage) {
-          gameWindow.draw(correctRightText);
-          if (rightMessageClock.getElapsedTime().asSeconds() >= 0.25f) {
-            showRCorrectMessage = false;
-          }
-        }
+        drawTimedFeedback(
+            gameWindow,
+            correctRightText,
+            showRightCorrectMessage,
+            rightMessageClock);
 
         leftStreakText.setString("Streak: " + to_string(leftStreak));
         rightStreakText.setString("Streak: " + to_string(rightStreak));
-        gameWindow.draw(gamemenuText);
+        gameWindow.draw(gameInstructionsText);
         gameWindow.draw(leftStreakText);
         gameWindow.draw(rightStreakText);
         gameWindow.display();
-      } // END !isPaused
-    } // END delta time
-  } // END game window loop
+      }
+    }
+  }
 
   return 0;
 }
