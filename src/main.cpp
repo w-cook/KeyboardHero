@@ -535,6 +535,7 @@ int main() {
               missSound.play();
             }
             if (inTargetL &&
+                !randomLeftLetters.empty() &&
                 getDescription(key->scancode) ==
                     randomLeftLetters[0].randomLeftLetterText.getString()) {
               // increase/decrease counters
@@ -601,6 +602,7 @@ int main() {
               missSound.play();
             }
             if (inTargetR &&
+                !randomRightLetters.empty() &&
                 getDescription(key->scancode) ==
                     randomRightLetters[0].randomRightLetterText.getString()) {
               showRCorrectMessage = true;
@@ -694,8 +696,9 @@ int main() {
 
         // delete struct at index 0 when it goes out of bounds
         // left
-        if (randomLeftLetters[0].randomLeftLetterText.getPosition().y >=
-            gameWindow.getSize().y) {
+        if (!randomLeftLetters.empty() &&
+            randomLeftLetters[0].randomLeftLetterText.getPosition().y >=
+                gameWindow.getSize().y) {
           randomLeftLetters.erase(randomLeftLetters.begin());
           // increase/decrease counters
           leftMissStreak += 1;
@@ -716,8 +719,9 @@ int main() {
           missSound.play();
         }
         // right
-        if (randomRightLetters[0].randomRightLetterText.getPosition().y >=
-            gameWindow.getSize().y) {
+        if (!randomRightLetters.empty() &&
+            randomRightLetters[0].randomRightLetterText.getPosition().y >=
+                gameWindow.getSize().y) {
           randomRightLetters.erase(randomRightLetters.begin());
           // increase/decrease counters
           rightMissStreak += 1;
@@ -739,32 +743,28 @@ int main() {
         }
 
         // left letter collisions with target box
-        if (randomLeftLetters[0].randomLeftLetterText.getPosition().y >=
-                (targetBox.getPosition().y - 54) &&
-            randomLeftLetters[0].randomLeftLetterText.getPosition().y <=
-                (targetBox.getPosition().y + 36)) {
-          inTargetL = true;
-        }
-        if (randomLeftLetters[0].randomLeftLetterText.getPosition().y <
-                (targetBox.getPosition().y - 54) ||
-            randomLeftLetters[0].randomLeftLetterText.getPosition().y >
-                (targetBox.getPosition().y + 36)) {
+        if (randomLeftLetters.empty()) {
           inTargetL = false;
-        };
+        } else {
+          const float letterY =
+              randomLeftLetters.front().randomLeftLetterText.getPosition().y;
+
+          inTargetL =
+              letterY >= (targetBox.getPosition().y - 54.f) &&
+              letterY <= (targetBox.getPosition().y + 36.f);
+        }
 
         // right letter collisions with target box
-        if (randomRightLetters[0].randomRightLetterText.getPosition().y >=
-                (targetBox.getPosition().y - 54) &&
-            randomRightLetters[0].randomRightLetterText.getPosition().y <=
-                (targetBox.getPosition().y + 36)) {
-          inTargetR = true;
-        }
-        if (randomRightLetters[0].randomRightLetterText.getPosition().y <
-                (targetBox.getPosition().y - 54) ||
-            randomRightLetters[0].randomRightLetterText.getPosition().y >
-                (targetBox.getPosition().y + 36)) {
+        if (randomRightLetters.empty()) {
           inTargetR = false;
-        };
+        } else {
+          const float letterY =
+              randomRightLetters.front().randomRightLetterText.getPosition().y;
+
+          inTargetR =
+              letterY >= (targetBox.getPosition().y - 54.f) &&
+              letterY <= (targetBox.getPosition().y + 36.f);
+        }
 
         // show left "miss" message
         if (showLMissMessage) {
