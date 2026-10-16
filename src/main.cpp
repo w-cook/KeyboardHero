@@ -1,17 +1,15 @@
+#include "AssetLoading.h"
+#include "RandomGeneration.h"
+
 #include <SFML/Audio.hpp>
 #include <SFML/Graphics.hpp>
 #include <cstdlib>
 #include <filesystem>
 #include <iostream>
 #include <string>
-#include <vector>
 
 using namespace sf;
 using namespace std;
-
-#if defined(__APPLE__)
-#include <mach-o/dyld.h>
-#endif
 
 // Letter types
 struct BackgroundLetter {
@@ -64,114 +62,6 @@ vector<LeftHandLetter> leftFallingLetters;
 vector<RightHandLetter> rightFallingLetters;
 
 bool isPaused = false;
-
-// Asset utilities
-static std::filesystem::path getExecutableDir() {
-#if defined(__APPLE__)
-  uint32_t size = 0;
-  _NSGetExecutablePath(nullptr, &size);
-  std::string executablePathBuffer(size, '\0');
-  if (_NSGetExecutablePath(executablePathBuffer.data(), &size) != 0) {
-    return std::filesystem::current_path(); // fallback
-  }
-  return std::filesystem::weakly_canonical(executablePathBuffer).parent_path();
-#else
-  return std::filesystem::current_path();
-#endif
-}
-
-static std::filesystem::path assetPath(const std::string &insideAssets) {
-  // First check for assets next to the executable.
-  auto adjacentAssetPath = getExecutableDir() / "assets" / insideAssets;
-  if (std::filesystem::exists(adjacentAssetPath))
-    return adjacentAssetPath;
-
-  // Check the macOS application bundle's Resources directory.
-  auto bundleAssetPath = std::filesystem::weakly_canonical(
-      getExecutableDir() / ".." / "Resources" / "assets" / insideAssets);
-  if (std::filesystem::exists(bundleAssetPath))
-    return bundleAssetPath;
-
-  // Fall back to the working directory.
-  return std::filesystem::current_path() / "assets" / insideAssets;
-}
-
-static void loadSoundBuffers(
-    SoundBuffer &titleSongBuffer,
-    SoundBuffer &titleTransSoundBuffer,
-    SoundBuffer &gameSongBuffer,
-    SoundBuffer &correctSoundBuffer,
-    SoundBuffer &missSoundBuffer) {
-  if (!titleSongBuffer.loadFromFile(
-          assetPath("Audio/StartMenu-Song.wav").string())) {
-    cerr << "Failed to load title song" << endl;
-  }
-
-  if (!titleTransSoundBuffer.loadFromFile(
-          assetPath("Audio/StartMenuTransition-Sound.wav").string())) {
-    cerr << "Failed to load title transition sound" << endl;
-  }
-
-  if (!gameSongBuffer.loadFromFile(
-          assetPath("Audio/gameSong1.wav").string())) {
-    cerr << "Failed to load game song" << endl;
-  }
-
-  if (!correctSoundBuffer.loadFromFile(
-          assetPath("Audio/correctHit.wav").string())) {
-    cerr << "Failed to load correct hit sound" << endl;
-  }
-
-  if (!missSoundBuffer.loadFromFile(
-          assetPath("Audio/missSound.wav").string())) {
-    cerr << "Failed to load miss sound" << endl;
-  }
-}
-
-// Random generation
-char generateBackgroundLetter() { return 'A' + rand() % 26; }
-
-char generateLeftHandLetter() {
-  vector<char> leftHandLetters = {'Q', 'W', 'E', 'R', 'T', 'A', 'S',
-                                  'D', 'F', 'G', 'Z', 'X', 'C', 'V'};
-  int index = rand() % leftHandLetters.size();
-  return leftHandLetters[index];
-}
-
-char generateRightHandLetter() {
-  vector<char> rightHandLetters = {'Y', 'U', 'I', 'O', 'P', 'H',
-                                   'J', 'K', 'L', 'N', 'M', 'B'};
-  int index = rand() % rightHandLetters.size();
-  return rightHandLetters[index];
-}
-
-float generateBackgroundXPosition(int windowWidth) { return rand() % (windowWidth + 1); }
-
-float generateLeftHandXPosition(int windowWidth) {
-  float padding = windowWidth * 0.15f;
-  float minLeftX = padding;
-  float maxLeftX = (windowWidth * 0.5f) - padding;
-  return minLeftX + rand() % static_cast<int>(maxLeftX - minLeftX + 1);
-}
-
-float generateRightHandXPosition(int windowWidth) {
-  float padding = windowWidth * 0.15f;
-  float minRightX = (windowWidth * 0.5f) + padding;
-  float maxRightX = windowWidth - padding;
-  return minRightX + rand() % static_cast<int>(maxRightX - minRightX + 1);
-}
-
-float generateBackgroundLetterSpeed() { return 300 + rand() % 601; }
-
-float generateHardSpawnInterval() {
-  return 0.5 + (rand() % 151) / 100.0;
-} // 0.5 - 2.0 step 0.01
-float generateMediumSpawnInterval() {
-  return 1.5 + (rand() % 151) / 100.0;
-} // 1.5 - 3.0 step 0.01
-float generateEasySpawnInterval() {
-  return 2.5 + (rand() % 151) / 100.0;
-} // 2.5 - 4.0 step 0.01
 
 // Main menu
 static void configureMenuTexts(
