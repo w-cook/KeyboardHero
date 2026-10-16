@@ -1,6 +1,7 @@
 #include "Menu.h"
 
 #include "ApplicationState.h"
+#include "AudioPlayer.h"
 #include "RandomGeneration.h"
 
 using namespace sf;
@@ -146,7 +147,7 @@ void handleMenuKeyPress(
   if (scancode == Keyboard::Scancode::Q) {
     context.menuWindow.close();
     context.gameWindow.close();
-    context.titleSong.stop();
+    context.audio.stopTitleMusic();
   }
 
   // Select difficulty and transition into gameplay.
@@ -155,8 +156,8 @@ void handleMenuKeyPress(
       scancode == Keyboard::Scancode::Num3) {
 
     context.menuWindow.close();
-    context.titleSong.stop();
-    context.transitionSound.play();
+    context.audio.stopTitleMusic();
+    context.audio.playMenuTransition();
     context.gameWindow.display();
 
     configureDifficulty(
@@ -184,7 +185,7 @@ void runMenu(
       while (const auto event = menuWindow.pollEvent()) {
         if (event->is<Event::Closed>()) {
           menuWindow.close();
-          context.titleSong.stop();
+          context.audio.stopTitleMusic();
         }
 
         if (auto *key = event->getIf<Event::KeyPressed>()) {

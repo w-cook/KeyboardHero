@@ -22,6 +22,7 @@ endif()
 # Additional source files
 target_sources(KeyboardHero PRIVATE
   src/AssetLoading.cpp
+  src/AudioPlayer.cpp
   src/FallingLetters.cpp
   src/Gameplay.cpp
   src/GameplayFeedback.cpp

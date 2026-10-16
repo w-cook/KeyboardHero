@@ -2,9 +2,10 @@
 
 #include "FallingLetters.h"
 
-#include <SFML/Audio.hpp>
 #include <SFML/Graphics.hpp>
 #include <SFML/System/Clock.hpp>
+
+class AudioPlayer;
 
 // Per-hand scoring and feedback state
 struct HandFeedbackState {
@@ -31,7 +32,7 @@ void recordMiss(
     sf::Text &missText,
     bool &showMissMessage,
     sf::Clock &messageClock,
-    sf::Sound &missSound);
+    AudioPlayer &audio);
 
 void recordHit(
     int &streak,
@@ -39,7 +40,7 @@ void recordHit(
     sf::Text &correctText,
     bool &showCorrectMessage,
     sf::Clock &messageClock,
-    sf::Sound &correctSound);
+    AudioPlayer &audio);
 
 // Timed feedback rendering
 void drawTimedFeedback(
@@ -55,4 +56,4 @@ void handleOffscreenMisses(
     std::vector<RightHandLetter> &rightLetters,
     HandFeedbackState &leftFeedback,
     HandFeedbackState &rightFeedback,
-    sf::Sound &missSound);
+    AudioPlayer &audio);

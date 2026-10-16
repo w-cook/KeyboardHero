@@ -1,10 +1,10 @@
 #include "ApplicationState.h"
 #include "AssetLoading.h"
+#include "AudioPlayer.h"
 #include "Gameplay.h"
 #include "GameplayUI.h"
 #include "Menu.h"
 
-#include <SFML/Audio.hpp>
 #include <SFML/Graphics.hpp>
 #include <SFML/System/Clock.hpp>
 #include <iostream>
@@ -53,25 +53,7 @@ int main() {
       gameState);
 
   // Load audio resources.
-  SoundBuffer titleSongBuffer;
-  SoundBuffer titleTransSoundBuffer;
-  SoundBuffer gameSongBuffer;
-  SoundBuffer correctSoundBuffer;
-  SoundBuffer missSoundBuffer;
-
-  loadSoundBuffers(
-      titleSongBuffer,
-      titleTransSoundBuffer,
-      gameSongBuffer,
-      correctSoundBuffer,
-      missSoundBuffer);
-
-  // Create sound players after their buffers.
-  Sound titleSong(titleSongBuffer);
-  Sound titleTransSound(titleTransSoundBuffer);
-  Sound gameSong(gameSongBuffer);
-  Sound correctSound(correctSoundBuffer);
-  Sound missSound(missSoundBuffer);
+  AudioPlayer audio;
 
   // Initialize clocks.
   Clock gameClock;
@@ -81,17 +63,14 @@ int main() {
   MenuInputContext menuInput{
       menuWindow,
       gameWindow,
-      titleSong,
-      titleTransSound,
+      audio,
       gameState.leftSpawnInterval,
       gameState.leftLetterSpeed,
       gameState.rightSpawnInterval,
       gameState.rightLetterSpeed};
 
   // Start the title music.
-  titleSong.setLooping(true);
-  titleSong.setVolume(50);
-  titleSong.play();
+  audio.startTitleMusic();
 
   // Run the main menu.
   runMenu(
@@ -101,9 +80,7 @@ int main() {
       menuInput);
 
   // Start gameplay music.
-  gameSong.setLooping(true);
-  gameSong.setVolume(60);
-  gameSong.play();
+  audio.startGameplayMusic();
 
   // Run gameplay.
   runGameplay(
@@ -111,9 +88,7 @@ int main() {
       gameState,
       firaCodeFont,
       gameClock,
-      gameSong,
-      missSound,
-      correctSound);
+      audio);
 
   return 0;
 }

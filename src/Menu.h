@@ -5,6 +5,7 @@
 #include <SFML/Window/Keyboard.hpp>
 #include <vector>
 
+class AudioPlayer;
 struct MenuState;
 
 // Menu types
@@ -16,8 +17,7 @@ struct BackgroundLetter {
 struct MenuInputContext {
   sf::RenderWindow &menuWindow;
   sf::RenderWindow &gameWindow;
-  sf::Sound &titleSong;
-  sf::Sound &transitionSound;
+  AudioPlayer &audio;
 
   float &leftSpawnInterval;
   float &leftLetterSpeed;

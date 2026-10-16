@@ -1,9 +1,9 @@
 #pragma once
 
-#include <SFML/Audio.hpp>
 #include <SFML/Graphics.hpp>
 #include <SFML/System/Clock.hpp>
 
+class AudioPlayer;
 struct GameplayState;
 
 // Run the gameplay loop
@@ -12,6 +12,4 @@ void runGameplay(
     GameplayState &gameState,
     const sf::Font &font,
     sf::Clock &frameClock,
-    sf::Sound &gameSong,
-    sf::Sound &missSound,
-    sf::Sound &correctSound);
+    AudioPlayer &audio);

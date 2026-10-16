@@ -1,5 +1,7 @@
 #include "GameplayFeedback.h"
 
+#include "AudioPlayer.h"
+
 using namespace sf;
 using namespace std;
 
@@ -23,7 +25,7 @@ void recordMiss(
     Text &missText,
     bool &showMissMessage,
     Clock &messageClock,
-    Sound &missSound) {
+    AudioPlayer &audio) {
   ++missStreak;
   streak = 0;
 
@@ -33,7 +35,7 @@ void recordMiss(
 
   messageClock.restart();
   showMissMessage = true;
-  missSound.play();
+  audio.playMiss();
 }
 
 void recordHit(
@@ -42,7 +44,7 @@ void recordHit(
     Text &correctText,
     bool &showCorrectMessage,
     Clock &messageClock,
-    Sound &correctSound) {
+    AudioPlayer &audio) {
   ++streak;
   missStreak = 0;
 
@@ -52,7 +54,7 @@ void recordHit(
 
   showCorrectMessage = true;
   messageClock.restart();
-  correctSound.play();
+  audio.playCorrectHit();
 }
 
 // Timed feedback rendering
@@ -77,7 +79,7 @@ void handleOffscreenMisses(
     vector<RightHandLetter> &rightLetters,
     HandFeedbackState &leftFeedback,
     HandFeedbackState &rightFeedback,
-    Sound &missSound) {
+    AudioPlayer &audio) {
   // Remove an off-screen left-hand letter and record a miss.
   if (!leftLetters.empty() &&
       leftLetters.front().text.getPosition().y >=
@@ -90,7 +92,7 @@ void handleOffscreenMisses(
         leftFeedback.missText,
         leftFeedback.showMissMessage,
         leftFeedback.messageClock,
-        missSound);
+        audio);
   }
 
   // Remove an off-screen right-hand letter and record a miss.
@@ -105,6 +107,6 @@ void handleOffscreenMisses(
         rightFeedback.missText,
         rightFeedback.showMissMessage,
         rightFeedback.messageClock,
-        missSound);
+        audio);
   }
 }

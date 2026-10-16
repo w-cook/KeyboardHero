@@ -1,5 +1,7 @@
 #include "GameplayInput.h"
 
+#include "AudioPlayer.h"
+
 using namespace sf;
 using namespace std;
 
@@ -7,36 +9,24 @@ using namespace std;
 void handleGameplayControls(
     Keyboard::Scancode scancode,
     RenderWindow &gameWindow,
-    Sound &gameSong,
-    bool &isPaused,
-    bool &isMuted) {
+    AudioPlayer &audio,
+    bool &isPaused) {
   // Escape -> quit
   if (scancode == Keyboard::Scancode::Escape) {
     gameWindow.close();
-    gameSong.stop();
+    audio.stopGameplayMusic();
   }
 
   // Tab -> pause or resume
   if (scancode == Keyboard::Scancode::Tab) {
     isPaused = !isPaused;
-
-    if (gameSong.getStatus() == SoundSource::Status::Playing) {
-      gameSong.pause();
-    } else {
-      gameSong.play();
-    }
+    audio.toggleGameplayMusicPause();
   }
 
   // Ctrl -> mute or unmute gameplay music
   if (scancode == Keyboard::Scancode::LControl ||
       scancode == Keyboard::Scancode::RControl) {
-    isMuted = !isMuted;
-
-    if (isMuted) {
-      gameSong.setVolume(0);
-    } else {
-      gameSong.setVolume(60);
-    }
+    audio.toggleGameplayMusicMute();
   }
 }
 
@@ -82,8 +72,7 @@ void handleLeftTypingKey(
     bool inTarget,
     vector<LeftHandLetter> &letters,
     HandFeedbackState &feedback,
-    Sound &missSound,
-    Sound &correctSound) {
+    AudioPlayer &audio) {
   // A keypress outside the target zone counts as a miss.
   if (!inTarget) {
     // Remove the first letter if one is available.
@@ -97,7 +86,7 @@ void handleLeftTypingKey(
         feedback.missText,
         feedback.showMissMessage,
         feedback.messageClock,
-        missSound);
+        audio);
   }
 
   // A matching keypress inside the target zone is a hit.
@@ -113,7 +102,7 @@ void handleLeftTypingKey(
         feedback.correctText,
         feedback.showCorrectMessage,
         feedback.messageClock,
-        correctSound);
+        audio);
   }
 }
 
@@ -122,8 +111,7 @@ void handleRightTypingKey(
     bool inTarget,
     vector<RightHandLetter> &letters,
     HandFeedbackState &feedback,
-    Sound &missSound,
-    Sound &correctSound) {
+    AudioPlayer &audio) {
   // A keypress outside the target zone counts as a miss.
   if (!inTarget) {
     // Remove the first letter if one is available.
@@ -137,7 +125,7 @@ void handleRightTypingKey(
         feedback.missText,
         feedback.showMissMessage,
         feedback.messageClock,
-        missSound);
+        audio);
   }
 
   // A matching keypress inside the target zone is a hit.
@@ -153,6 +141,6 @@ void handleRightTypingKey(
         feedback.correctText,
         feedback.showCorrectMessage,
         feedback.messageClock,
-        correctSound);
+        audio);
   }
 }

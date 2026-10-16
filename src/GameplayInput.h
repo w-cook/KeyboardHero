@@ -3,10 +3,11 @@
 #include "FallingLetters.h"
 #include "GameplayFeedback.h"
 
-#include <SFML/Audio.hpp>
 #include <SFML/Graphics.hpp>
 #include <SFML/Window/Keyboard.hpp>
 #include <vector>
+
+class AudioPlayer;
 
 // Input classification
 enum class TypingHand {
@@ -19,9 +20,8 @@ enum class TypingHand {
 void handleGameplayControls(
     sf::Keyboard::Scancode scancode,
     sf::RenderWindow &gameWindow,
-    sf::Sound &gameSong,
-    bool &isPaused,
-    bool &isMuted);
+    AudioPlayer &audio,
+    bool &isPaused);
 
 TypingHand classifyTypingKey(sf::Keyboard::Scancode scancode);
 
@@ -31,13 +31,11 @@ void handleLeftTypingKey(
     bool inTarget,
     std::vector<LeftHandLetter> &letters,
     HandFeedbackState &feedback,
-    sf::Sound &missSound,
-    sf::Sound &correctSound);
+    AudioPlayer &audio);
 
 void handleRightTypingKey(
     sf::Keyboard::Scancode scancode,
     bool inTarget,
     std::vector<RightHandLetter> &letters,
     HandFeedbackState &feedback,
-    sf::Sound &missSound,
-    sf::Sound &correctSound);
+    AudioPlayer &audio);

@@ -46,7 +46,6 @@ struct GameplayState {
   bool rightLetterIsInTargetZone = false;
 
   bool isPaused = false;
-  bool isMuted = false;
 
   HandFeedbackState leftFeedback;
   HandFeedbackState rightFeedback;

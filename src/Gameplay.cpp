@@ -1,6 +1,7 @@
 #include "Gameplay.h"
 
 #include "ApplicationState.h"
+#include "AudioPlayer.h"
 #include "FallingLetters.h"
 #include "GameplayFeedback.h"
 #include "GameplayInput.h"
@@ -16,9 +17,7 @@ void runGameplay(
     GameplayState &gameState,
     const Font &font,
     Clock &frameClock,
-    Sound &gameSong,
-    Sound &missSound,
-    Sound &correctSound) {
+    AudioPlayer &audio) {
   while (gameWindow.isOpen()) {
     float dt = frameClock.getElapsedTime().asSeconds();
 
@@ -28,16 +27,15 @@ void runGameplay(
       while (const auto event = gameWindow.pollEvent()) {
         if (event->is<Event::Closed>()) {
           gameWindow.close();
-          gameSong.stop();
+          audio.stopGameplayMusic();
         }
 
         if (auto *key = event->getIf<Event::KeyPressed>()) {
           handleGameplayControls(
               key->scancode,
               gameWindow,
-              gameSong,
-              gameState.isPaused,
-              gameState.isMuted);
+              audio,
+              gameState.isPaused);
 
           const TypingHand typingHand = classifyTypingKey(key->scancode);
 
@@ -47,8 +45,7 @@ void runGameplay(
                 gameState.leftLetterIsInTargetZone,
                 gameState.leftFallingLetters,
                 gameState.leftFeedback,
-                missSound,
-                correctSound);
+                audio);
           }
 
           if (typingHand == TypingHand::Right) {
@@ -57,8 +54,7 @@ void runGameplay(
                 gameState.rightLetterIsInTargetZone,
                 gameState.rightFallingLetters,
                 gameState.rightFeedback,
-                missSound,
-                correctSound);
+                audio);
           }
         }
       }
@@ -106,7 +102,7 @@ void runGameplay(
             gameState.rightFallingLetters,
             gameState.leftFeedback,
             gameState.rightFeedback,
-            missSound);
+            audio);
 
         // Check whether the first left-hand letter is in the target zone.
         gameState.leftLetterIsInTargetZone =
