@@ -1,4 +1,6 @@
 #include "AssetLoading.h"
+#include "FallingLetters.h"
+#include "GameplayUI.h"
 #include "Menu.h"
 #include "RandomGeneration.h"
 
@@ -11,17 +13,6 @@
 
 using namespace sf;
 using namespace std;
-
-// Letter types
-struct LeftHandLetter {
-  Text text;
-  float speed;
-};
-
-struct RightHandLetter {
-  Text text;
-  float speed;
-};
 
 // Input and feedback types
 enum class TypingHand {
@@ -39,179 +30,6 @@ struct HandFeedbackState {
   bool &showCorrectMessage;
   Clock &messageClock;
 };
-
-// Gameplay UI and targeting
-static void configureFeedbackText(
-    Text &text,
-    const char *message,
-    const Color &color,
-    Vector2f position) {
-  text.setString(message);
-  text.setCharacterSize(24);
-  text.setFillColor(color);
-
-  FloatRect textSize = text.getLocalBounds();
-  text.setOrigin({
-      textSize.size.x / 2.f,
-      textSize.size.y / 2.f});
-
-  text.setPosition(position);
-}
-
-static void configureGameplayHudTexts(
-    Vector2u windowSize,
-    Text &instructionsText,
-    Text &leftStreakText,
-    Text &rightStreakText,
-    int leftStreak,
-    int rightStreak) {
-  // Configure gameplay instructions.
-  instructionsText.setString(
-      "TAB -> Pause\n\nESC -> Quit\n\nCTL -> Mute Song");
-  instructionsText.setCharacterSize(36);
-  instructionsText.setFillColor(Color::White);
-
-  FloatRect instructionsSize = instructionsText.getLocalBounds();
-  instructionsText.setOrigin({
-      instructionsSize.size.x / 2.f,
-      instructionsSize.size.y / 2.f});
-  instructionsText.setPosition({
-      windowSize.x / 2.f,
-      windowSize.y / 2.f});
-
-  // Configure left-hand streak counter.
-  leftStreakText.setString("Streak: " + to_string(leftStreak));
-  leftStreakText.setCharacterSize(36);
-  leftStreakText.setFillColor(Color::White);
-
-  FloatRect leftStreakSize = leftStreakText.getLocalBounds();
-  leftStreakText.setOrigin({
-      leftStreakSize.size.x / 2.f,
-      leftStreakSize.size.y / 2.f});
-  leftStreakText.setPosition({
-      windowSize.x / 4.f,
-      windowSize.y - (windowSize.y / 20.f)});
-
-  // Configure right-hand streak counter.
-  rightStreakText.setString("Streak: " + to_string(rightStreak));
-  rightStreakText.setCharacterSize(36);
-  rightStreakText.setFillColor(Color::White);
-
-  FloatRect rightStreakSize = rightStreakText.getLocalBounds();
-  rightStreakText.setOrigin({
-      rightStreakSize.size.x / 2.f,
-      rightStreakSize.size.y / 2.f});
-  rightStreakText.setPosition({
-      windowSize.x - (windowSize.x / 4.f),
-      windowSize.y - (windowSize.y / 20.f)});
-}
-
-static RectangleShape createTargetBox(Vector2u windowSize) {
-  RectangleShape targetBox(
-      {static_cast<float>(windowSize.x),
-       72.f});
-
-  targetBox.setOrigin({
-      targetBox.getSize().x / 2.f,
-      targetBox.getSize().y / 2.f});
-
-  targetBox.setPosition({
-      windowSize.x / 2.f,
-      windowSize.y - (windowSize.y / 8.5f)});
-
-  targetBox.setOutlineColor(Color::Green);
-  targetBox.setOutlineThickness(1.f);
-  targetBox.setFillColor(Color::Transparent);
-
-  return targetBox;
-}
-
-static bool isLetterInTargetZone(
-    const Text &letter,
-    const RectangleShape &targetBox) {
-  const float letterY = letter.getPosition().y;
-  const float targetY = targetBox.getPosition().y;
-
-  return letterY >= (targetY - 54.f) &&
-         letterY <= (targetY + 36.f);
-}
-
-// Falling letters
-static void spawnLeftLetter(
-    vector<LeftHandLetter> &letters,
-    const Font &font,
-    int windowWidth,
-    float speed) {
-  Text letterText(font);
-  char letter = generateLeftHandLetter();
-
-  letterText.setString(letter);
-  letterText.setCharacterSize(36);
-  letterText.setFillColor(Color::Green);
-
-  FloatRect textSize = letterText.getLocalBounds();
-  letterText.setOrigin({
-      textSize.size.x / 2.f,
-      textSize.size.y / 2.f});
-
-  float x = generateLeftHandXPosition(windowWidth);
-  letterText.setPosition({
-      x,
-      -20.f});
-
-  letters.push_back({
-      letterText,
-      speed});
-}
-
-static void spawnRightLetter(
-    vector<RightHandLetter> &letters,
-    const Font &font,
-    int windowWidth,
-    float speed) {
-  Text letterText(font);
-  char letter = generateRightHandLetter();
-
-  letterText.setString(letter);
-  letterText.setCharacterSize(36);
-  letterText.setFillColor(Color::Green);
-
-  FloatRect textSize = letterText.getLocalBounds();
-  letterText.setOrigin({
-      textSize.size.x / 2.f,
-      textSize.size.y / 2.f});
-
-  float x = generateRightHandXPosition(windowWidth);
-  letterText.setPosition({
-      x,
-      -20.f});
-
-  letters.push_back({
-      letterText,
-      speed});
-}
-
-static void updateAndDrawGameplayLetters(
-    RenderWindow &window,
-    vector<LeftHandLetter> &leftLetters,
-    vector<RightHandLetter> &rightLetters,
-    float dt) {
-  // Move and draw left-hand letters.
-  for (auto &letter : leftLetters) {
-    letter.text.move({
-        0,
-        letter.speed * dt});
-    window.draw(letter.text);
-  }
-
-  // Move and draw right-hand letters.
-  for (auto &letter : rightLetters) {
-    letter.text.move({
-        0,
-        letter.speed * dt});
-    window.draw(letter.text);
-  }
-}
 
 // Scoring and feedback
 static void setFeedbackTextSize(
