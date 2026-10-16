@@ -1,4 +1,6 @@
 #include "Menu.h"
+
+#include "ApplicationState.h"
 #include "RandomGeneration.h"
 
 using namespace sf;
@@ -163,5 +165,59 @@ void handleMenuKeyPress(
         context.leftLetterSpeed,
         context.rightSpawnInterval,
         context.rightLetterSpeed);
+  }
+}
+
+void runMenu(
+    MenuState &menuState,
+    const Font &font,
+    Clock &frameClock,
+    MenuInputContext &context) {
+  RenderWindow &menuWindow = context.menuWindow;
+
+  while (menuWindow.isOpen()) {
+    float dt = frameClock.getElapsedTime().asSeconds();
+
+    if (dt >= 1.f / 60.f) {
+      frameClock.restart();
+
+      while (const auto event = menuWindow.pollEvent()) {
+        if (event->is<Event::Closed>()) {
+          menuWindow.close();
+          context.titleSong.stop();
+        }
+
+        if (auto *key = event->getIf<Event::KeyPressed>()) {
+          handleMenuKeyPress(
+              key->scancode,
+              context);
+        }
+      }
+
+      menuWindow.clear();
+
+      menuWindow.draw(menuState.titleText);
+      menuWindow.draw(menuState.menuText);
+
+      // Update and draw the animated menu background.
+      updateAndDrawMenuBackground(
+          menuWindow,
+          font,
+          menuState.backgroundLetters,
+          menuState.backgroundSpawnClock,
+          menuState.backgroundSpawnInterval,
+          dt);
+
+      if (menuState.showLoadingMessage) {
+        menuWindow.draw(menuState.loadingText);
+
+        if (menuState.loadingClock.getElapsedTime().asSeconds() > 3.f) {
+          menuState.showLoadingMessage = false;
+          menuState.loadingClock.stop();
+        }
+      }
+
+      menuWindow.display();
+    }
   }
 }

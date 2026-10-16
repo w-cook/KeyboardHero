@@ -5,6 +5,8 @@
 #include <SFML/Window/Keyboard.hpp>
 #include <vector>
 
+struct MenuState;
+
 // Menu types
 struct BackgroundLetter {
   sf::Text text;
@@ -42,4 +44,11 @@ void updateAndDrawMenuBackground(
 // Menu input
 void handleMenuKeyPress(
     sf::Keyboard::Scancode scancode,
+    MenuInputContext &context);
+
+// Run the main-menu loop
+void runMenu(
+    MenuState &menuState,
+    const sf::Font &font,
+    sf::Clock &frameClock,
     MenuInputContext &context);

@@ -1,11 +1,13 @@
 #include "GameplayUI.h"
 
+#include "ApplicationState.h"
+
 #include <string>
 
 using namespace sf;
 using namespace std;
 
-void configureFeedbackText(
+static void configureFeedbackText(
     Text &text,
     const char *message,
     const Color &color,
@@ -22,7 +24,7 @@ void configureFeedbackText(
   text.setPosition(position);
 }
 
-void configureGameplayHudTexts(
+static void configureGameplayHudTexts(
     Vector2u windowSize,
     Text &instructionsText,
     Text &leftStreakText,
@@ -70,7 +72,7 @@ void configureGameplayHudTexts(
       windowSize.y - (windowSize.y / 20.f)});
 }
 
-RectangleShape createTargetBox(Vector2u windowSize) {
+static RectangleShape createTargetBox(Vector2u windowSize) {
   RectangleShape targetBox(
       {static_cast<float>(windowSize.x),
        72.f});
@@ -88,6 +90,59 @@ RectangleShape createTargetBox(Vector2u windowSize) {
   targetBox.setFillColor(Color::Transparent);
 
   return targetBox;
+}
+
+void initializeGameplayUI(
+    Vector2u windowSize,
+    GameplayState &gameState) {
+  // Calculate feedback positions.
+  const Vector2f leftFeedbackPosition{
+      windowSize.x / 9.5f,
+      windowSize.y / 2.f};
+
+  const Vector2f rightFeedbackPosition{
+      windowSize.x - (windowSize.x / 10.f),
+      windowSize.y / 2.f};
+
+  // Configure left-hand miss feedback.
+  configureFeedbackText(
+      gameState.leftFeedback.missText,
+      "Miss",
+      Color::Red,
+      leftFeedbackPosition);
+
+  // Configure right-hand miss feedback.
+  configureFeedbackText(
+      gameState.rightFeedback.missText,
+      "Miss",
+      Color::Red,
+      rightFeedbackPosition);
+
+  // Configure left-hand correct-hit feedback.
+  configureFeedbackText(
+      gameState.leftFeedback.correctText,
+      "Correct!",
+      Color::Cyan,
+      leftFeedbackPosition);
+
+  // Configure right-hand correct-hit feedback.
+  configureFeedbackText(
+      gameState.rightFeedback.correctText,
+      "Correct!",
+      Color::Cyan,
+      rightFeedbackPosition);
+
+  // Configure gameplay instructions and streak counters.
+  configureGameplayHudTexts(
+      windowSize,
+      gameState.gameInstructionsText,
+      gameState.leftStreakText,
+      gameState.rightStreakText,
+      gameState.leftFeedback.streak,
+      gameState.rightFeedback.streak);
+
+  // Configure the gameplay target bar.
+  gameState.targetBox = createTargetBox(windowSize);
 }
 
 bool isLetterInTargetZone(

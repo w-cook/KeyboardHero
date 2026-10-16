@@ -2,22 +2,14 @@
 
 #include <SFML/Graphics.hpp>
 
-void configureFeedbackText(
-    sf::Text &text,
-    const char *message,
-    const sf::Color &color,
-    sf::Vector2f position);
+struct GameplayState;
 
-void configureGameplayHudTexts(
+// Gameplay presentation initialization
+void initializeGameplayUI(
     sf::Vector2u windowSize,
-    sf::Text &instructionsText,
-    sf::Text &leftStreakText,
-    sf::Text &rightStreakText,
-    int leftStreak,
-    int rightStreak);
+    GameplayState &gameState);
 
-sf::RectangleShape createTargetBox(sf::Vector2u windowSize);
-
+// Target-zone detection
 bool isLetterInTargetZone(
     const sf::Text &letter,
     const sf::RectangleShape &targetBox);
