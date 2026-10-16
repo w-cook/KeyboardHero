@@ -23,6 +23,8 @@ endif()
 target_sources(KeyboardHero PRIVATE
   src/AssetLoading.cpp
   src/FallingLetters.cpp
+  src/GameplayFeedback.cpp
+  src/GameplayInput.cpp
   src/GameplayUI.cpp
   src/Menu.cpp
   src/RandomGeneration.cpp
