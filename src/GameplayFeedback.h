@@ -6,15 +6,22 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/System/Clock.hpp>
 
-// Per-hand scoring and feedback references
+// Per-hand scoring and feedback state
 struct HandFeedbackState {
-  int &streak;
-  int &missStreak;
-  sf::Text &missText;
-  sf::Text &correctText;
-  bool &showMissMessage;
-  bool &showCorrectMessage;
-  sf::Clock &messageClock;
+  int streak = 0;
+  int missStreak = 0;
+
+  sf::Text missText;
+  sf::Text correctText;
+
+  bool showMissMessage = false;
+  bool showCorrectMessage = false;
+
+  sf::Clock messageClock;
+
+  explicit HandFeedbackState(const sf::Font &font)
+      : missText(font),
+        correctText(font) {}
 };
 
 // Scoring and feedback

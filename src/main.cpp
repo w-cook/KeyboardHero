@@ -1,3 +1,4 @@
+#include "ApplicationState.h"
 #include "AssetLoading.h"
 #include "FallingLetters.h"
 #include "GameplayFeedback.h"
@@ -26,10 +27,8 @@ int main() {
     return -1;
   }
 
-  // Application-owned letter collections.
-  vector<BackgroundLetter> menuBackgroundLetters;
-  vector<LeftHandLetter> leftFallingLetters;
-  vector<RightHandLetter> rightFallingLetters;
+  MenuState menuState(firaCodeFont);
+  GameplayState gameState(firaCodeFont);
 
   // Create the gameplay window.
   RenderWindow gameWindow(
@@ -47,21 +46,11 @@ int main() {
       "Main Menu");
   menuWindow.setVerticalSyncEnabled(true);
 
-  // Create and configure the main-menu text.
-  Text titleText(firaCodeFont);
-  Text menuText(firaCodeFont);
-  Text loadingText(firaCodeFont);
-
   configureMenuTexts(
       menuWindow.getSize(),
-      titleText,
-      menuText,
-      loadingText);
-
-  bool showLoadingMessage = true;
-
-  // Create the gameplay instructions.
-  Text gameInstructionsText(firaCodeFont);
+      menuState.titleText,
+      menuState.menuText,
+      menuState.loadingText);
 
   // Gameplay feedback positions.
   const Vector2u gameSize = gameWindow.getSize();
@@ -75,64 +64,43 @@ int main() {
       gameSize.y / 2.f};
 
   // Left-hand miss feedback.
-  Text missLeftText(firaCodeFont);
   configureFeedbackText(
-      missLeftText,
+      gameState.leftFeedback.missText,
       "Miss",
       Color::Red,
       leftFeedbackPosition);
-  bool showLeftMissMessage = false;
 
   // Right-hand miss feedback.
-  Text missRightText(firaCodeFont);
   configureFeedbackText(
-      missRightText,
+      gameState.rightFeedback.missText,
       "Miss",
       Color::Red,
       rightFeedbackPosition);
-  bool showRightMissMessage = false;
 
   // Left-hand correct-hit feedback.
-  Text correctLeftText(firaCodeFont);
   configureFeedbackText(
-      correctLeftText,
+      gameState.leftFeedback.correctText,
       "Correct!",
       Color::Cyan,
       leftFeedbackPosition);
-  bool showLeftCorrectMessage = false;
 
   // Right-hand correct-hit feedback.
-  Text correctRightText(firaCodeFont);
   configureFeedbackText(
-      correctRightText,
+      gameState.rightFeedback.correctText,
       "Correct!",
       Color::Cyan,
       rightFeedbackPosition);
-  bool showRightCorrectMessage = false;
-
-  // Initialize streak counters.
-  int leftStreak = 0;
-  int rightStreak = 0;
-  int leftMissStreak = 0;
-  int rightMissStreak = 0;
-
-  // Create gameplay HUD text.
-  Text leftStreakText(firaCodeFont);
-  Text rightStreakText(firaCodeFont);
 
   configureGameplayHudTexts(
       gameWindow.getSize(),
-      gameInstructionsText,
-      leftStreakText,
-      rightStreakText,
-      leftStreak,
-      rightStreak);
+      gameState.gameInstructionsText,
+      gameState.leftStreakText,
+      gameState.rightStreakText,
+      gameState.leftFeedback.streak,
+      gameState.rightFeedback.streak);
 
   // Create the gameplay target bar.
-  RectangleShape targetBox = createTargetBox(gameWindow.getSize());
-
-  bool leftLetterIsInTargetZone = false;
-  bool rightLetterIsInTargetZone = false;
+  gameState.targetBox = createTargetBox(gameWindow.getSize());
 
   // Load audio resources.
   SoundBuffer titleSongBuffer;
@@ -157,46 +125,18 @@ int main() {
 
   // Initialize clocks.
   Clock gameClock;
-  Clock backgroundSpawnClock;
-  Clock leftSpawnClock;
-  Clock rightSpawnClock;
-  Clock leftMessageClock;
-  Clock rightMessageClock;
-  Clock loadingClock;
-  float backgroundSpawnInterval = 0.2f;
-
-  HandFeedbackState leftFeedback{
-      leftStreak,
-      leftMissStreak,
-      missLeftText,
-      correctLeftText,
-      showLeftMissMessage,
-      showLeftCorrectMessage,
-      leftMessageClock};
-  HandFeedbackState rightFeedback{
-      rightStreak,
-      rightMissStreak,
-      missRightText,
-      correctRightText,
-      showRightMissMessage,
-      showRightCorrectMessage,
-      rightMessageClock};
-
-  // Difficulty-dependent letter settings.
-  float leftLetterSpeed;
-  float rightLetterSpeed;
-  float leftSpawnInterval;
-  float rightSpawnInterval;
+  gameState.leftSpawnClock.restart();
+  gameState.rightSpawnClock.restart();
 
   MenuInputContext menuInput{
       menuWindow,
       gameWindow,
       titleSong,
       titleTransSound,
-      leftSpawnInterval,
-      leftLetterSpeed,
-      rightSpawnInterval,
-      rightLetterSpeed};
+      gameState.leftSpawnInterval,
+      gameState.leftLetterSpeed,
+      gameState.rightSpawnInterval,
+      gameState.rightLetterSpeed};
 
   // Start the title music.
   titleSong.setLooping(true);
@@ -224,23 +164,23 @@ int main() {
 
       menuWindow.clear();
 
-      menuWindow.draw(titleText);
-      menuWindow.draw(menuText);
+      menuWindow.draw(menuState.titleText);
+      menuWindow.draw(menuState.menuText);
 
       // Update and draw the animated menu background.
       updateAndDrawMenuBackground(
           menuWindow,
           firaCodeFont,
-          menuBackgroundLetters,
-          backgroundSpawnClock,
-          backgroundSpawnInterval,
+          menuState.backgroundLetters,
+          menuState.backgroundSpawnClock,
+          menuState.backgroundSpawnInterval,
           dt);
 
-      if (showLoadingMessage) {
-        menuWindow.draw(loadingText);
-        if (loadingClock.getElapsedTime().asSeconds() > 3.f) {
-          showLoadingMessage = false;
-          loadingClock.stop();
+      if (menuState.showLoadingMessage) {
+        menuWindow.draw(menuState.loadingText);
+        if (menuState.loadingClock.getElapsedTime().asSeconds() > 3.f) {
+          menuState.showLoadingMessage = false;
+          menuState.loadingClock.stop();
         }
       }
 
@@ -252,8 +192,6 @@ int main() {
   gameSong.setLooping(true);
   gameSong.setVolume(60);
   gameSong.play();
-  bool isPaused = false;
-  bool isMuted = false;
 
   // Gameplay loop.
   while (gameWindow.isOpen()) {
@@ -272,17 +210,17 @@ int main() {
               key->scancode,
               gameWindow,
               gameSong,
-              isPaused,
-              isMuted);
+              gameState.isPaused,
+              gameState.isMuted);
 
           const TypingHand typingHand = classifyTypingKey(key->scancode);
 
           if (typingHand == TypingHand::Left) {
             handleLeftTypingKey(
                 key->scancode,
-                leftLetterIsInTargetZone,
-                leftFallingLetters,
-                leftFeedback,
+                gameState.leftLetterIsInTargetZone,
+                gameState.leftFallingLetters,
+                gameState.leftFeedback,
                 missSound,
                 correctSound);
           }
@@ -290,9 +228,9 @@ int main() {
           if (typingHand == TypingHand::Right) {
             handleRightTypingKey(
                 key->scancode,
-                rightLetterIsInTargetZone,
-                rightFallingLetters,
-                rightFeedback,
+                gameState.rightLetterIsInTargetZone,
+                gameState.rightFallingLetters,
+                gameState.rightFeedback,
                 missSound,
                 correctSound);
           }
@@ -301,91 +239,91 @@ int main() {
 
       gameWindow.clear();
 
-      if (!isPaused) {
-        gameWindow.draw(targetBox);
+      if (!gameState.isPaused) {
+        gameWindow.draw(gameState.targetBox);
 
         // Spawn left-hand letters at the configured interval.
-        if (leftSpawnClock.getElapsedTime().asSeconds() > leftSpawnInterval) {
+        if (gameState.leftSpawnClock.getElapsedTime().asSeconds() > gameState.leftSpawnInterval) {
           spawnLeftLetter(
-              leftFallingLetters,
+              gameState.leftFallingLetters,
               firaCodeFont,
               gameWindow.getSize().x,
-              leftLetterSpeed);
+              gameState.leftLetterSpeed);
 
-          leftSpawnClock.restart();
+          gameState.leftSpawnClock.restart();
         }
 
         // Spawn right-hand letters at the configured interval.
-        if (rightSpawnClock.getElapsedTime().asSeconds() > rightSpawnInterval) {
+        if (gameState.rightSpawnClock.getElapsedTime().asSeconds() > gameState.rightSpawnInterval) {
           spawnRightLetter(
-              rightFallingLetters,
+              gameState.rightFallingLetters,
               firaCodeFont,
               gameWindow.getSize().x,
-              rightLetterSpeed);
+              gameState.rightLetterSpeed);
 
-          rightSpawnClock.restart();
+          gameState.rightSpawnClock.restart();
         }
 
         // Update and draw falling gameplay letters.
         updateAndDrawGameplayLetters(
             gameWindow,
-            leftFallingLetters,
-            rightFallingLetters,
+            gameState.leftFallingLetters,
+            gameState.rightFallingLetters,
             dt);
 
         // Remove off-screen letters and record misses.
         handleOffscreenMisses(
             static_cast<float>(gameWindow.getSize().y),
-            leftFallingLetters,
-            rightFallingLetters,
-            leftFeedback,
-            rightFeedback,
+            gameState.leftFallingLetters,
+            gameState.rightFallingLetters,
+            gameState.leftFeedback,
+            gameState.rightFeedback,
             missSound);
 
         // Check whether the first left-hand letter is in the target zone.
-        leftLetterIsInTargetZone =
-            !leftFallingLetters.empty() &&
+        gameState.leftLetterIsInTargetZone =
+            !gameState.leftFallingLetters.empty() &&
             isLetterInTargetZone(
-                leftFallingLetters.front().text,
-                targetBox);
+                gameState.leftFallingLetters.front().text,
+                gameState.targetBox);
 
         // Check whether the first right-hand letter is in the target zone.
-        rightLetterIsInTargetZone =
-            !rightFallingLetters.empty() &&
+        gameState.rightLetterIsInTargetZone =
+            !gameState.rightFallingLetters.empty() &&
             isLetterInTargetZone(
-                rightFallingLetters.front().text,
-                targetBox);
+                gameState.rightFallingLetters.front().text,
+                gameState.targetBox);
 
         // Draw active hit/miss feedback for both hands.
         drawTimedFeedback(
             gameWindow,
-            missLeftText,
-            showLeftMissMessage,
-            leftMessageClock);
+            gameState.leftFeedback.missText,
+            gameState.leftFeedback.showMissMessage,
+            gameState.leftFeedback.messageClock);
 
         drawTimedFeedback(
             gameWindow,
-            missRightText,
-            showRightMissMessage,
-            rightMessageClock);
+            gameState.rightFeedback.missText,
+            gameState.rightFeedback.showMissMessage,
+            gameState.rightFeedback.messageClock);
 
         drawTimedFeedback(
             gameWindow,
-            correctLeftText,
-            showLeftCorrectMessage,
-            leftMessageClock);
+            gameState.leftFeedback.correctText,
+            gameState.leftFeedback.showCorrectMessage,
+            gameState.leftFeedback.messageClock);
 
         drawTimedFeedback(
             gameWindow,
-            correctRightText,
-            showRightCorrectMessage,
-            rightMessageClock);
+            gameState.rightFeedback.correctText,
+            gameState.rightFeedback.showCorrectMessage,
+            gameState.rightFeedback.messageClock);
 
-        leftStreakText.setString("Streak: " + to_string(leftStreak));
-        rightStreakText.setString("Streak: " + to_string(rightStreak));
-        gameWindow.draw(gameInstructionsText);
-        gameWindow.draw(leftStreakText);
-        gameWindow.draw(rightStreakText);
+        gameState.leftStreakText.setString("Streak: " + to_string(gameState.leftFeedback.streak));
+        gameState.rightStreakText.setString("Streak: " + to_string(gameState.rightFeedback.streak));
+        gameWindow.draw(gameState.gameInstructionsText);
+        gameWindow.draw(gameState.leftStreakText);
+        gameWindow.draw(gameState.rightStreakText);
         gameWindow.display();
       }
     }
