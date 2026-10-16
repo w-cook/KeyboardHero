@@ -43,9 +43,7 @@ int main() {
 
   configureMenuTexts(
       menuWindow.getSize(),
-      menuState.titleText,
-      menuState.menuText,
-      menuState.loadingText);
+      menuState);
 
   // Initialize gameplay presentation.
   initializeGameplayUI(
@@ -64,10 +62,7 @@ int main() {
       menuWindow,
       gameWindow,
       audio,
-      gameState.leftSpawnInterval,
-      gameState.leftLetterSpeed,
-      gameState.rightSpawnInterval,
-      gameState.rightLetterSpeed};
+      gameState};
 
   // Start the title music.
   audio.startTitleMusic();

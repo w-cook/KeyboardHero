@@ -1,13 +1,10 @@
 #pragma once
 
-#include "FallingLetters.h"
-#include "GameplayFeedback.h"
-
 #include <SFML/Graphics.hpp>
 #include <SFML/Window/Keyboard.hpp>
-#include <vector>
 
 class AudioPlayer;
+struct GameplayState;
 
 // Input classification
 enum class TypingHand {
@@ -28,14 +25,10 @@ TypingHand classifyTypingKey(sf::Keyboard::Scancode scancode);
 // Per-hand typing input
 void handleLeftTypingKey(
     sf::Keyboard::Scancode scancode,
-    bool inTarget,
-    std::vector<LeftHandLetter> &letters,
-    HandFeedbackState &feedback,
+    GameplayState &gameState,
     AudioPlayer &audio);
 
 void handleRightTypingKey(
     sf::Keyboard::Scancode scancode,
-    bool inTarget,
-    std::vector<RightHandLetter> &letters,
-    HandFeedbackState &feedback,
+    GameplayState &gameState,
     AudioPlayer &audio);

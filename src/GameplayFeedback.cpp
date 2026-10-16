@@ -1,5 +1,6 @@
 #include "GameplayFeedback.h"
 
+#include "ApplicationState.h"
 #include "AudioPlayer.h"
 
 using namespace sf;
@@ -20,45 +21,37 @@ static void setFeedbackTextSize(
 
 // Scoring and feedback
 void recordMiss(
-    int &streak,
-    int &missStreak,
-    Text &missText,
-    bool &showMissMessage,
-    Clock &messageClock,
+    HandFeedbackState &feedback,
     AudioPlayer &audio) {
-  ++missStreak;
-  streak = 0;
+  ++feedback.missStreak;
+  feedback.streak = 0;
 
   setFeedbackTextSize(
-      missText,
-      missStreak);
+      feedback.missText,
+      feedback.missStreak);
 
-  messageClock.restart();
-  showMissMessage = true;
+  feedback.messageClock.restart();
+  feedback.showMissMessage = true;
   audio.playMiss();
 }
 
 void recordHit(
-    int &streak,
-    int &missStreak,
-    Text &correctText,
-    bool &showCorrectMessage,
-    Clock &messageClock,
+    HandFeedbackState &feedback,
     AudioPlayer &audio) {
-  ++streak;
-  missStreak = 0;
+  ++feedback.streak;
+  feedback.missStreak = 0;
 
   setFeedbackTextSize(
-      correctText,
-      streak);
+      feedback.correctText,
+      feedback.streak);
 
-  showCorrectMessage = true;
-  messageClock.restart();
+  feedback.showCorrectMessage = true;
+  feedback.messageClock.restart();
   audio.playCorrectHit();
 }
 
 // Timed feedback rendering
-void drawTimedFeedback(
+static void drawTimedFeedback(
     RenderWindow &window,
     Text &message,
     bool &showMessage,
@@ -72,41 +65,63 @@ void drawTimedFeedback(
   }
 }
 
+void drawGameplayFeedback(
+    RenderWindow &window,
+    GameplayState &gameState) {
+  // Draw left-hand miss feedback.
+  drawTimedFeedback(
+      window,
+      gameState.leftFeedback.missText,
+      gameState.leftFeedback.showMissMessage,
+      gameState.leftFeedback.messageClock);
+
+  // Draw right-hand miss feedback.
+  drawTimedFeedback(
+      window,
+      gameState.rightFeedback.missText,
+      gameState.rightFeedback.showMissMessage,
+      gameState.rightFeedback.messageClock);
+
+  // Draw left-hand correct-hit feedback.
+  drawTimedFeedback(
+      window,
+      gameState.leftFeedback.correctText,
+      gameState.leftFeedback.showCorrectMessage,
+      gameState.leftFeedback.messageClock);
+
+  // Draw right-hand correct-hit feedback.
+  drawTimedFeedback(
+      window,
+      gameState.rightFeedback.correctText,
+      gameState.rightFeedback.showCorrectMessage,
+      gameState.rightFeedback.messageClock);
+}
+
 // Off-screen miss handling
 void handleOffscreenMisses(
     float windowHeight,
-    vector<LeftHandLetter> &leftLetters,
-    vector<RightHandLetter> &rightLetters,
-    HandFeedbackState &leftFeedback,
-    HandFeedbackState &rightFeedback,
+    GameplayState &gameState,
     AudioPlayer &audio) {
+  auto &leftLetters = gameState.leftFallingLetters;
+  auto &rightLetters = gameState.rightFallingLetters;
+
   // Remove an off-screen left-hand letter and record a miss.
   if (!leftLetters.empty() &&
-      leftLetters.front().text.getPosition().y >=
-          windowHeight) {
+      leftLetters.front().text.getPosition().y >= windowHeight) {
     leftLetters.erase(leftLetters.begin());
 
     recordMiss(
-        leftFeedback.streak,
-        leftFeedback.missStreak,
-        leftFeedback.missText,
-        leftFeedback.showMissMessage,
-        leftFeedback.messageClock,
+        gameState.leftFeedback,
         audio);
   }
 
   // Remove an off-screen right-hand letter and record a miss.
   if (!rightLetters.empty() &&
-      rightLetters.front().text.getPosition().y >=
-          windowHeight) {
+      rightLetters.front().text.getPosition().y >= windowHeight) {
     rightLetters.erase(rightLetters.begin());
 
     recordMiss(
-        rightFeedback.streak,
-        rightFeedback.missStreak,
-        rightFeedback.missText,
-        rightFeedback.showMissMessage,
-        rightFeedback.messageClock,
+        gameState.rightFeedback,
         audio);
   }
 }

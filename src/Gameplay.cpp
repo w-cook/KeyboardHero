@@ -42,18 +42,14 @@ void runGameplay(
           if (typingHand == TypingHand::Left) {
             handleLeftTypingKey(
                 key->scancode,
-                gameState.leftLetterIsInTargetZone,
-                gameState.leftFallingLetters,
-                gameState.leftFeedback,
+                gameState,
                 audio);
           }
 
           if (typingHand == TypingHand::Right) {
             handleRightTypingKey(
                 key->scancode,
-                gameState.rightLetterIsInTargetZone,
-                gameState.rightFallingLetters,
-                gameState.rightFeedback,
+                gameState,
                 audio);
           }
         }
@@ -98,10 +94,7 @@ void runGameplay(
         // Remove off-screen letters and record misses.
         handleOffscreenMisses(
             static_cast<float>(gameWindow.getSize().y),
-            gameState.leftFallingLetters,
-            gameState.rightFallingLetters,
-            gameState.leftFeedback,
-            gameState.rightFeedback,
+            gameState,
             audio);
 
         // Check whether the first left-hand letter is in the target zone.
@@ -119,29 +112,9 @@ void runGameplay(
                 gameState.targetBox);
 
         // Draw active hit/miss feedback for both hands.
-        drawTimedFeedback(
+        drawGameplayFeedback(
             gameWindow,
-            gameState.leftFeedback.missText,
-            gameState.leftFeedback.showMissMessage,
-            gameState.leftFeedback.messageClock);
-
-        drawTimedFeedback(
-            gameWindow,
-            gameState.rightFeedback.missText,
-            gameState.rightFeedback.showMissMessage,
-            gameState.rightFeedback.messageClock);
-
-        drawTimedFeedback(
-            gameWindow,
-            gameState.leftFeedback.correctText,
-            gameState.leftFeedback.showCorrectMessage,
-            gameState.leftFeedback.messageClock);
-
-        drawTimedFeedback(
-            gameWindow,
-            gameState.rightFeedback.correctText,
-            gameState.rightFeedback.showCorrectMessage,
-            gameState.rightFeedback.messageClock);
+            gameState);
 
         // Update and draw the gameplay HUD.
         gameState.leftStreakText.setString(

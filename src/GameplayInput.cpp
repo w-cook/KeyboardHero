@@ -1,6 +1,8 @@
 #include "GameplayInput.h"
 
+#include "ApplicationState.h"
 #include "AudioPlayer.h"
+#include "GameplayFeedback.h"
 
 using namespace sf;
 using namespace std;
@@ -69,10 +71,12 @@ TypingHand classifyTypingKey(Keyboard::Scancode scancode) {
 
 void handleLeftTypingKey(
     Keyboard::Scancode scancode,
-    bool inTarget,
-    vector<LeftHandLetter> &letters,
-    HandFeedbackState &feedback,
+    GameplayState &gameState,
     AudioPlayer &audio) {
+  auto &letters = gameState.leftFallingLetters;
+  auto &feedback = gameState.leftFeedback;
+  const bool inTarget = gameState.leftLetterIsInTargetZone;
+
   // A keypress outside the target zone counts as a miss.
   if (!inTarget) {
     // Remove the first letter if one is available.
@@ -81,11 +85,7 @@ void handleLeftTypingKey(
     }
 
     recordMiss(
-        feedback.streak,
-        feedback.missStreak,
-        feedback.missText,
-        feedback.showMissMessage,
-        feedback.messageClock,
+        feedback,
         audio);
   }
 
@@ -97,21 +97,19 @@ void handleLeftTypingKey(
     letters.erase(letters.begin());
 
     recordHit(
-        feedback.streak,
-        feedback.missStreak,
-        feedback.correctText,
-        feedback.showCorrectMessage,
-        feedback.messageClock,
+        feedback,
         audio);
   }
 }
 
 void handleRightTypingKey(
     Keyboard::Scancode scancode,
-    bool inTarget,
-    vector<RightHandLetter> &letters,
-    HandFeedbackState &feedback,
+    GameplayState &gameState,
     AudioPlayer &audio) {
+  auto &letters = gameState.rightFallingLetters;
+  auto &feedback = gameState.rightFeedback;
+  const bool inTarget = gameState.rightLetterIsInTargetZone;
+
   // A keypress outside the target zone counts as a miss.
   if (!inTarget) {
     // Remove the first letter if one is available.
@@ -120,11 +118,7 @@ void handleRightTypingKey(
     }
 
     recordMiss(
-        feedback.streak,
-        feedback.missStreak,
-        feedback.missText,
-        feedback.showMissMessage,
-        feedback.messageClock,
+        feedback,
         audio);
   }
 
@@ -136,11 +130,7 @@ void handleRightTypingKey(
     letters.erase(letters.begin());
 
     recordHit(
-        feedback.streak,
-        feedback.missStreak,
-        feedback.correctText,
-        feedback.showCorrectMessage,
-        feedback.messageClock,
+        feedback,
         audio);
   }
 }

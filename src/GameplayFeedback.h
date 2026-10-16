@@ -6,6 +6,7 @@
 #include <SFML/System/Clock.hpp>
 
 class AudioPlayer;
+struct GameplayState;
 
 // Per-hand scoring and feedback state
 struct HandFeedbackState {
@@ -27,33 +28,20 @@ struct HandFeedbackState {
 
 // Scoring and feedback
 void recordMiss(
-    int &streak,
-    int &missStreak,
-    sf::Text &missText,
-    bool &showMissMessage,
-    sf::Clock &messageClock,
+    HandFeedbackState &feedback,
     AudioPlayer &audio);
 
 void recordHit(
-    int &streak,
-    int &missStreak,
-    sf::Text &correctText,
-    bool &showCorrectMessage,
-    sf::Clock &messageClock,
+    HandFeedbackState &feedback,
     AudioPlayer &audio);
 
-// Timed feedback rendering
-void drawTimedFeedback(
+// Render active feedback messages
+void drawGameplayFeedback(
     sf::RenderWindow &window,
-    sf::Text &message,
-    bool &showMessage,
-    const sf::Clock &messageClock);
+    GameplayState &gameState);
 
 // Off-screen miss handling
 void handleOffscreenMisses(
     float windowHeight,
-    std::vector<LeftHandLetter> &leftLetters,
-    std::vector<RightHandLetter> &rightLetters,
-    HandFeedbackState &leftFeedback,
-    HandFeedbackState &rightFeedback,
+    GameplayState &gameState,
     AudioPlayer &audio);

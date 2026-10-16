@@ -6,6 +6,7 @@
 #include <vector>
 
 class AudioPlayer;
+struct GameplayState;
 struct MenuState;
 
 // Menu types
@@ -18,27 +19,19 @@ struct MenuInputContext {
   sf::RenderWindow &menuWindow;
   sf::RenderWindow &gameWindow;
   AudioPlayer &audio;
-
-  float &leftSpawnInterval;
-  float &leftLetterSpeed;
-  float &rightSpawnInterval;
-  float &rightLetterSpeed;
+  GameplayState &gameState;
 };
 
 // Menu configuration
 void configureMenuTexts(
     sf::Vector2u windowSize,
-    sf::Text &titleText,
-    sf::Text &menuText,
-    sf::Text &loadingText);
+    MenuState &menuState);
 
 // Menu animation
 void updateAndDrawMenuBackground(
     sf::RenderWindow &window,
     const sf::Font &font,
-    std::vector<BackgroundLetter> &letters,
-    sf::Clock &spawnClock,
-    float spawnInterval,
+    MenuState &menuState,
     float dt);
 
 // Menu input

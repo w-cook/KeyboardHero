@@ -9,9 +9,11 @@ using namespace std;
 
 void configureMenuTexts(
     Vector2u windowSize,
-    Text &titleText,
-    Text &menuText,
-    Text &loadingText) {
+    MenuState &menuState) {
+  Text &titleText = menuState.titleText;
+  Text &menuText = menuState.menuText;
+  Text &loadingText = menuState.loadingText;
+
   // Configure the title.
   titleText.setString("Keyboard Hero");
   titleText.setCharacterSize(72);
@@ -59,10 +61,12 @@ void configureMenuTexts(
 void updateAndDrawMenuBackground(
     RenderWindow &window,
     const Font &font,
-    vector<BackgroundLetter> &letters,
-    Clock &spawnClock,
-    float spawnInterval,
+    MenuState &menuState,
     float dt) {
+  auto &letters = menuState.backgroundLetters;
+  auto &spawnClock = menuState.backgroundSpawnClock;
+  const float spawnInterval = menuState.backgroundSpawnInterval;
+
   // Spawn a new background letter when the interval elapses.
   if (spawnClock.getElapsedTime().asSeconds() > spawnInterval) {
     Text text(font);
@@ -106,33 +110,30 @@ void updateAndDrawMenuBackground(
 
 static void configureDifficulty(
     Keyboard::Scancode selection,
-    float &leftSpawnInterval,
-    float &leftLetterSpeed,
-    float &rightSpawnInterval,
-    float &rightLetterSpeed) {
+    GameplayState &gameState) {
   switch (selection) {
     case Keyboard::Scancode::Num1:
       // Easy
-      leftSpawnInterval = generateEasySpawnInterval();
-      leftLetterSpeed = 200.f;
-      rightSpawnInterval = generateEasySpawnInterval();
-      rightLetterSpeed = 200.f;
+      gameState.leftSpawnInterval = generateEasySpawnInterval();
+      gameState.leftLetterSpeed = 200.f;
+      gameState.rightSpawnInterval = generateEasySpawnInterval();
+      gameState.rightLetterSpeed = 200.f;
       break;
 
     case Keyboard::Scancode::Num2:
       // Medium
-      leftSpawnInterval = generateMediumSpawnInterval();
-      leftLetterSpeed = 300.f;
-      rightSpawnInterval = generateMediumSpawnInterval();
-      rightLetterSpeed = 300.f;
+      gameState.leftSpawnInterval = generateMediumSpawnInterval();
+      gameState.leftLetterSpeed = 300.f;
+      gameState.rightSpawnInterval = generateMediumSpawnInterval();
+      gameState.rightLetterSpeed = 300.f;
       break;
 
     case Keyboard::Scancode::Num3:
       // Hard
-      leftSpawnInterval = generateHardSpawnInterval();
-      leftLetterSpeed = 400.f;
-      rightSpawnInterval = generateHardSpawnInterval();
-      rightLetterSpeed = 400.f;
+      gameState.leftSpawnInterval = generateHardSpawnInterval();
+      gameState.leftLetterSpeed = 400.f;
+      gameState.rightSpawnInterval = generateHardSpawnInterval();
+      gameState.rightLetterSpeed = 400.f;
       break;
 
     default:
@@ -162,10 +163,7 @@ void handleMenuKeyPress(
 
     configureDifficulty(
         scancode,
-        context.leftSpawnInterval,
-        context.leftLetterSpeed,
-        context.rightSpawnInterval,
-        context.rightLetterSpeed);
+        context.gameState);
   }
 }
 
@@ -204,9 +202,7 @@ void runMenu(
       updateAndDrawMenuBackground(
           menuWindow,
           font,
-          menuState.backgroundLetters,
-          menuState.backgroundSpawnClock,
-          menuState.backgroundSpawnInterval,
+          menuState,
           dt);
 
       if (menuState.showLoadingMessage) {
