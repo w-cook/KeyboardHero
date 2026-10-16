@@ -19,8 +19,18 @@ else()
   add_executable(KeyboardHero src/main.cpp)
 endif()
 
-# link header files
-# target_include_directories(KeyboardHero PRIVATE include)
+# Additional source files
+target_sources(KeyboardHero PRIVATE
+  src/AssetLoading.cpp
+  src/AudioPlayer.cpp
+  src/FallingLetters.cpp
+  src/Gameplay.cpp
+  src/GameplayFeedback.cpp
+  src/GameplayInput.cpp
+  src/GameplayUI.cpp
+  src/Menu.cpp
+  src/RandomGeneration.cpp
+)
 
 # link SFML libraries
 target_link_libraries(KeyboardHero PRIVATE
