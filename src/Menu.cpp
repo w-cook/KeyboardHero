@@ -14,7 +14,6 @@ void configureMenuTexts(
     MenuState &menuState) {
   Text &titleText = menuState.titleText;
   Text &menuText = menuState.menuText;
-  Text &loadingText = menuState.loadingText;
 
   // Configure the title.
   titleText.setString("Keyboard Hero");
@@ -43,21 +42,6 @@ void configureMenuTexts(
   menuText.setPosition({
       windowSize.x / 2.f,
       windowSize.y / 1.5f});
-
-  // Configure the introductory loading message.
-  loadingText.setString(
-      "Loading...please do not press any keys\nKeyboardHero "
-      "may result in KeyboardFailure");
-  loadingText.setCharacterSize(36);
-  loadingText.setFillColor(Color::Yellow);
-
-  FloatRect loadingTextSize = loadingText.getLocalBounds();
-  loadingText.setOrigin({
-      loadingTextSize.size.x / 2.f,
-      loadingTextSize.size.y / 2.f});
-  loadingText.setPosition({
-      windowSize.x / 2.f,
-      windowSize.y - 76.f});
 }
 
 void updateAndDrawMenuBackground(
@@ -218,15 +202,6 @@ GameScreen runMenu(
                 font,
                 menuState,
                 deltaTime);
-
-            if (menuState.showLoadingMessage) {
-                window.draw(menuState.loadingText);
-
-                if (menuState.loadingClock.getElapsedTime().asSeconds() > 3.f) {
-                    menuState.showLoadingMessage = false;
-                    menuState.loadingClock.stop();
-                }
-            }
 
             window.display();
         }

@@ -20,21 +20,17 @@ struct MenuState {
   std::vector<BackgroundLetter> backgroundLetters;
 
   sf::Clock backgroundSpawnClock;
-  sf::Clock loadingClock;
 
   std::size_t backgroundLettersSpawned = 0;
   float backgroundSpawnInterval = 0.2f;
-  bool showLoadingMessage = true;
 
   // Menu Presentation
   sf::Text titleText;
   sf::Text menuText;
-  sf::Text loadingText;
 
   explicit MenuState(const sf::Font &font)
       : titleText(font),
-        menuText(font),
-        loadingText(font) {}
+        menuText(font) {}
 };
 
 // Gameplay session state
