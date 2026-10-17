@@ -74,8 +74,13 @@ GameScreen runGameplay(
 
           handleGameplayControls(
               key->scancode,
-              audio,
-              gameState.isPaused);
+              gameState,
+              audio);
+
+          // Ignore gameplay typing input while paused.
+          if (gameState.isPaused) {
+            continue;
+          }
 
           const TypingHand typingHand = classifyTypingKey(key->scancode);
 
