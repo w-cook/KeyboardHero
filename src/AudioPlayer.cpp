@@ -36,6 +36,9 @@ void AudioPlayer::playMenuTransition() {
 
 // Gameplay music
 void AudioPlayer::startGameplayMusic() {
+  // Each gameplay session starts with normal music settings.
+  gameplayMusicMuted_ = false;
+
   gameSong_.setLooping(true);
   gameSong_.setVolume(60);
   gameSong_.play();

@@ -22,68 +22,89 @@ int main() {
     return -1;
   }
 
+  // Create the menu and gameplay state.
   MenuState menuState(firaCodeFont);
   GameplayState gameState(firaCodeFont);
 
-  // Create the gameplay window.
-  RenderWindow gameWindow(
+  // Create the shared application window.
+  RenderWindow window(
       VideoMode({
           1920,
           1080}),
       "KeyboardHero");
-  gameWindow.setVerticalSyncEnabled(true);
+  window.setVerticalSyncEnabled(true);
 
-  // Create the main-menu window.
-  RenderWindow menuWindow(
-      VideoMode({
-          1920,
-          1080}),
-      "Main Menu");
-  menuWindow.setVerticalSyncEnabled(true);
-
+  // Initialize menu and gameplay presentation.
   configureMenuTexts(
-      menuWindow.getSize(),
+      window.getSize(),
       menuState);
 
-  // Initialize gameplay presentation.
   initializeGameplayUI(
-      gameWindow.getSize(),
+      window.getSize(),
       gameState);
 
   // Load audio resources.
   AudioPlayer audio;
 
-  // Initialize clocks.
-  Clock gameClock;
-  gameState.leftSpawnClock.restart();
-  gameState.rightSpawnClock.restart();
+  // Shared frame clock.
+  Clock frameClock;
 
-  MenuInputContext menuInput{
-      menuWindow,
-      gameWindow,
-      audio,
-      gameState};
+  // Begin at the main menu.
+  GameScreen currentScreen = GameScreen::MainMenu;
 
-  // Start the title music.
-  audio.startTitleMusic();
+  // Application state machine.
+  while (window.isOpen() && currentScreen != GameScreen::Exit) {
+    switch (currentScreen) {
+      case GameScreen::MainMenu: {
+        window.setTitle("KeyboardHero - Main Menu");
 
-  // Run the main menu.
-  runMenu(
-      menuState,
-      firaCodeFont,
-      gameClock,
-      menuInput);
+        audio.startTitleMusic();
+        frameClock.restart();
 
-  // Start gameplay music.
-  audio.startGameplayMusic();
+        currentScreen = runMenu(
+            menuState,
+            firaCodeFont,
+            frameClock,
+            window,
+            gameState);
 
-  // Run gameplay.
-  runGameplay(
-      gameWindow,
-      gameState,
-      firaCodeFont,
-      gameClock,
-      audio);
+        audio.stopTitleMusic();
+
+        if (currentScreen == GameScreen::Gameplay) {
+          audio.playMenuTransition();
+        }
+
+        break;
+      }
+
+      case GameScreen::Gameplay: {
+        window.setTitle("KeyboardHero");
+
+        // Prepare a fresh game using the selected difficulty.
+        resetGameplaySession(gameState);
+        frameClock.restart();
+
+        audio.startGameplayMusic();
+
+        currentScreen = runGameplay(
+            window,
+            gameState,
+            firaCodeFont,
+            frameClock,
+            audio);
+
+        audio.stopGameplayMusic();
+
+        break;
+      }
+
+      case GameScreen::Exit:
+        break;
+    }
+  }
+
+  // All application shutdown paths converge here.
+  window.close();
 
   return 0;
 }

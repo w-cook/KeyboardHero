@@ -64,12 +64,12 @@ void updateAndDrawGameplayLetters(
     RenderWindow &window,
     vector<LeftHandLetter> &leftLetters,
     vector<RightHandLetter> &rightLetters,
-    float dt) {
+    float deltaTime) {
   // Move and draw left-hand letters.
   for (auto &letter : leftLetters) {
     letter.text.move({
         0,
-        letter.speed * dt});
+        letter.speed * deltaTime});
     window.draw(letter.text);
   }
 
@@ -77,7 +77,7 @@ void updateAndDrawGameplayLetters(
   for (auto &letter : rightLetters) {
     letter.text.move({
         0,
-        letter.speed * dt});
+        letter.speed * deltaTime});
     window.draw(letter.text);
   }
 }

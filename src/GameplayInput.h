@@ -16,7 +16,6 @@ enum class TypingHand {
 // Gameplay controls
 void handleGameplayControls(
     sf::Keyboard::Scancode scancode,
-    sf::RenderWindow &gameWindow,
     AudioPlayer &audio,
     bool &isPaused);
 

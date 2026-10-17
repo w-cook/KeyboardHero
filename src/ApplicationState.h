@@ -5,7 +5,15 @@
 #include "Menu.h"
 
 #include <SFML/System/Clock.hpp>
+#include <cstddef>
 #include <vector>
+
+// Application navigation states
+enum class GameScreen {
+    MainMenu,
+    Gameplay,
+    Exit
+};
 
 // Main-menu session state
 struct MenuState {
@@ -14,6 +22,7 @@ struct MenuState {
   sf::Clock backgroundSpawnClock;
   sf::Clock loadingClock;
 
+  std::size_t backgroundLettersSpawned = 0;
   float backgroundSpawnInterval = 0.2f;
   bool showLoadingMessage = true;
 

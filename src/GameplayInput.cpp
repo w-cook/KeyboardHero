@@ -10,15 +10,8 @@ using namespace std;
 // Gameplay input
 void handleGameplayControls(
     Keyboard::Scancode scancode,
-    RenderWindow &gameWindow,
     AudioPlayer &audio,
     bool &isPaused) {
-  // Escape -> quit
-  if (scancode == Keyboard::Scancode::Escape) {
-    gameWindow.close();
-    audio.stopGameplayMusic();
-  }
-
   // Tab -> pause or resume
   if (scancode == Keyboard::Scancode::Tab) {
     isPaused = !isPaused;

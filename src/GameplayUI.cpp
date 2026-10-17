@@ -33,7 +33,7 @@ static void configureGameplayHudTexts(
     int rightStreak) {
   // Configure gameplay instructions.
   instructionsText.setString(
-      "TAB -> Pause\n\nESC -> Quit\n\nCTL -> Mute Song");
+      "TAB -> Pause\n\nESC -> Main Menu\n\nCTL -> Mute Song");
   instructionsText.setCharacterSize(36);
   instructionsText.setFillColor(Color::White);
 
