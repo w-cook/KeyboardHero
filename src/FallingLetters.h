@@ -32,4 +32,4 @@ void updateAndDrawGameplayLetters(
     sf::RenderWindow &window,
     std::vector<LeftHandLetter> &leftLetters,
     std::vector<RightHandLetter> &rightLetters,
-    float dt);
+    float deltaTime);

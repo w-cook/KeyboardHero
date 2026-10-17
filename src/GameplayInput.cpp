@@ -10,18 +10,26 @@ using namespace std;
 // Gameplay input
 void handleGameplayControls(
     Keyboard::Scancode scancode,
-    RenderWindow &gameWindow,
-    AudioPlayer &audio,
-    bool &isPaused) {
-  // Escape -> quit
-  if (scancode == Keyboard::Scancode::Escape) {
-    gameWindow.close();
-    audio.stopGameplayMusic();
-  }
-
+    GameplayState &gameState,
+    AudioPlayer &audio) {
   // Tab -> pause or resume
   if (scancode == Keyboard::Scancode::Tab) {
-    isPaused = !isPaused;
+    gameState.isPaused = !gameState.isPaused;
+
+    if (gameState.isPaused) {
+      // Freeze gameplay timers without discarding elapsed time.
+      gameState.leftSpawnClock.stop();
+      gameState.rightSpawnClock.stop();
+      gameState.leftFeedback.messageClock.stop();
+      gameState.rightFeedback.messageClock.stop();
+    } else {
+      // Resume timers from their previously accumulated time.
+      gameState.leftSpawnClock.start();
+      gameState.rightSpawnClock.start();
+      gameState.leftFeedback.messageClock.start();
+      gameState.rightFeedback.messageClock.start();
+    }
+
     audio.toggleGameplayMusicPause();
   }
 

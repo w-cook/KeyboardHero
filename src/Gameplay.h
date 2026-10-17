@@ -5,9 +5,13 @@
 
 class AudioPlayer;
 struct GameplayState;
+enum class GameScreen;
 
-// Run the gameplay loop
-void runGameplay(
+// Prepare a fresh gameplay session while preserving difficulty settings
+void resetGameplaySession(GameplayState &gameState);
+
+// Run the gameplay loop and return the requested screen
+GameScreen runGameplay(
     sf::RenderWindow &gameWindow,
     GameplayState &gameState,
     const sf::Font &font,

@@ -12,30 +12,75 @@
 using namespace sf;
 using namespace std;
 
-void runGameplay(
+static void resetHandFeedback(HandFeedbackState &feedback) {
+  feedback.streak = 0;
+  feedback.missStreak = 0;
+
+  feedback.showMissMessage = false;
+  feedback.showCorrectMessage = false;
+
+  feedback.missText.setCharacterSize(24);
+  feedback.correctText.setCharacterSize(24);
+
+  feedback.messageClock.restart();
+}
+
+void resetGameplaySession(GameplayState &gameState) {
+  // Remove records from the previous gameplay session.
+  gameState.leftFallingLetters.clear();
+  gameState.rightFallingLetters.clear();
+
+  // Reset target-zone tracking and pause state.
+  gameState.leftLetterIsInTargetZone = false;
+  gameState.rightLetterIsInTargetZone = false;
+  gameState.isPaused = false;
+
+  // Reset scoring and feedback.
+  resetHandFeedback(gameState.leftFeedback);
+  resetHandFeedback(gameState.rightFeedback);
+
+  // Reset the streak displays.
+  gameState.leftStreakText.setString("Streak: 0");
+  gameState.rightStreakText.setString("Streak: 0");
+
+  // Restart spawning for this session.
+  gameState.leftSpawnClock.restart();
+  gameState.rightSpawnClock.restart();
+}
+
+GameScreen runGameplay(
     RenderWindow &gameWindow,
     GameplayState &gameState,
     const Font &font,
     Clock &frameClock,
     AudioPlayer &audio) {
   while (gameWindow.isOpen()) {
-    float dt = frameClock.getElapsedTime().asSeconds();
+    float deltaTime = frameClock.getElapsedTime().asSeconds();
 
-    if (dt >= 1.f / 60.f) {
+    if (deltaTime >= 1.f / 60.f) {
       frameClock.restart();
 
       while (const auto event = gameWindow.pollEvent()) {
+        // Closing the window requests application shutdown.
         if (event->is<Event::Closed>()) {
-          gameWindow.close();
-          audio.stopGameplayMusic();
+          return GameScreen::Exit;
         }
 
         if (auto *key = event->getIf<Event::KeyPressed>()) {
+          // Escape requests a return to the main menu.
+          if (key->scancode == Keyboard::Scancode::Escape) {
+            return GameScreen::MainMenu;
+          }
+
           handleGameplayControls(
               key->scancode,
-              gameWindow,
-              audio,
-              gameState.isPaused);
+              gameState,
+              audio);
+
+          // Ignore gameplay typing input while paused.
+          if (gameState.isPaused) {
+            continue;
+          }
 
           const TypingHand typingHand = classifyTypingKey(key->scancode);
 
@@ -89,7 +134,7 @@ void runGameplay(
             gameWindow,
             gameState.leftFallingLetters,
             gameState.rightFallingLetters,
-            dt);
+            deltaTime);
 
         // Remove off-screen letters and record misses.
         handleOffscreenMisses(
@@ -130,4 +175,6 @@ void runGameplay(
       }
     }
   }
+
+  return GameScreen::Exit;
 }
